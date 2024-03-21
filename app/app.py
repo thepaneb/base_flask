@@ -22,7 +22,7 @@ def obter_timeout() -> int:
     Returns:
         int: definições para connection e read timeout
     """
-    return 5
+    return (5, 5)
 
 
 def do_get(url: str, timeout: int | tuple[int, int] = obter_timeout()) -> Any:
