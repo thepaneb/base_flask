@@ -1,7 +1,8 @@
-# encoding: utf-8
+# -*- coding: utf-8 -*-
 """
 Descrição do arquivo
 """
+
 import hashlib
 from datetime import datetime
 from typing import Any
@@ -37,7 +38,8 @@ def do_get(url: str, timeout: int | tuple[int, int] = obter_timeout()) -> Any:
     """
     return requests.get(url=url, timeout=timeout)
 
-def agora(tz:str="America/Sao_Paulo") -> datetime:
+
+def agora(tz: str = "America/Sao_Paulo") -> datetime:
     """
     Retorna a data/hora atual com tz oficial BR
 
@@ -58,14 +60,9 @@ def get():
     Returns:
         tipo de retorno da função: descrição do retorno da função
     """
-    ini = agora()
     url = "http://www.google.com.br"
 
-    req = agora()
-
     r = do_get(url=url)
-
-    res = agora()
 
     retorno = jsonify(
         {
@@ -73,33 +70,9 @@ def get():
             "requests.get.status_code": r.status_code,
             "requests.get.text.length": len(r.text),
             "requests.get.text.hash": hashlib.sha512(r.text.encode()).hexdigest(),
+            "teste": "çãé",
         }
     )
-
-    fim = agora()
-
-    print(f"ini: {ini}")
-    print(f"req: {req}")
-
-    dif = req - ini
-    print(f"dif (1):         {dif}")
-
-    print(f"req: {req}")
-    print(f"res: {res}")
-
-    dif = res - req
-    print(f"dif (2):         {dif}")
-
-    print(f"res: {res}")
-    print(f"fim: {fim}")
-
-    dif = fim - res
-    print(f"dif (3):         {dif}")
-
-    dif = fim - ini
-    print(f"ini: {ini}")
-    print(f"fim: {fim}")
-    print(f"dif tot:         {dif}")
 
     return retorno
 
