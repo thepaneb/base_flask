@@ -7,6 +7,7 @@
   <img alt="Python" src="https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white">
   <img alt="Flask" src="https://img.shields.io/badge/Flask-3.x-000000?logo=flask&logoColor=white">
   <img alt="Dev Containers" src="https://img.shields.io/badge/VS%20Code-Dev%20Containers-007ACC?logo=visualstudiocode&logoColor=white">
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
 ## Why use this template
@@ -78,4 +79,4 @@ The launch profile uses `--no-debugger --no-reload` on purpose: Flask's own debu
 
 ## License
 
-This template does not ship a license file. Add one if you plan to distribute derived work.
+MIT — see [LICENSE](LICENSE).
