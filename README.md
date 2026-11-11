@@ -12,6 +12,8 @@
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
+**Landing page:** <https://thepaneb.github.io/base-flask/>
+
 ## Why use this template
 
 - **Zero local setup** — Python and the dependencies live inside the container.
