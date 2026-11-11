@@ -1,15 +1,28 @@
 """Rotas do módulo visits (camada fina: HTTP + service + resposta)."""
 
-from flask import abort
+import csv
+import io
+from datetime import datetime
+from types import SimpleNamespace
+
+from flask import Response, abort
 from flask_jwt_extended import jwt_required
 from flask_smorest import Blueprint
 
+from app.extensions import cache
+
 from .schemas import VisitCreateSchema, VisitListQuerySchema, VisitSchema
-from .service import delete_visit, get_visit, list_visits, record_visit
+from .service import delete_visit, export_visits, get_visit, list_visits, record_visit
 
 bp = Blueprint("visits", __name__, description="Exemplo com banco")
 
 _bearer = [{"bearerAuth": []}]
+LIST_VERSION_KEY = "visits:list:version"
+
+
+def _bump_list_version():
+    """Invalida o cache da listagem (namespace por versão)."""
+    cache.set(LIST_VERSION_KEY, (cache.get(LIST_VERSION_KEY) or 0) + 1)
 
 
 @bp.route("/")
@@ -17,7 +30,27 @@ _bearer = [{"bearerAuth": []}]
 @bp.paginate()
 @bp.arguments(VisitListQuerySchema, location="query")
 def index(filter_args, pagination_parameters):
-    """Lista as visitas com filtro (`?name=`), ordem (`?order=asc|desc`) e paginação."""
+    """Lista as visitas com filtro, ordem e paginação (com cache + header `X-Cache`)."""
+    version = cache.get(LIST_VERSION_KEY) or 0
+    key = (
+        f"visits:list:v{version}:p{pagination_parameters.page}"
+        f":s{pagination_parameters.page_size}:n{filter_args.get('name') or ''}"
+        f":o{filter_args.get('order') or 'desc'}"
+    )
+    hit = cache.get(key)
+    if hit is not None:
+        # O cache guarda dicts (JSON-safe); reidrata para o @response serializar.
+        items = [
+            SimpleNamespace(
+                id=i["id"],
+                name=i["name"],
+                created_at=datetime.fromisoformat(i["created_at"]),
+            )
+            for i in hit["items"]
+        ]
+        pagination_parameters.item_count = hit["total"]
+        return items, 200, {"X-Cache": "HIT"}
+
     items, total = list_visits(
         page=pagination_parameters.page,
         page_size=pagination_parameters.page_size,
@@ -25,7 +58,9 @@ def index(filter_args, pagination_parameters):
         order=filter_args.get("order") or "desc",
     )
     pagination_parameters.item_count = total
-    return items
+    payload = VisitSchema(many=True).dump(items)
+    cache.set(key, {"items": payload, "total": total})
+    return items, 200, {"X-Cache": "MISS"}
 
 
 @bp.route("/", methods=["POST"])
@@ -35,7 +70,9 @@ def index(filter_args, pagination_parameters):
 @bp.doc(security=_bearer)
 def create(args):
     """Registra uma visita (requer JWT). Corpo opcional: {"name": "..."}."""
-    return record_visit(args.get("name"))
+    visit = record_visit(args.get("name"))
+    _bump_list_version()
+    return visit
 
 
 @bp.route("/<int:visit_id>")
@@ -56,3 +93,21 @@ def destroy(visit_id):
     """Remove uma visita (requer JWT; 404 em JSON se não existir)."""
     if not delete_visit(visit_id):
         abort(404)
+    _bump_list_version()
+
+
+@bp.get("/export")
+@jwt_required()
+@bp.doc(security=_bearer)
+def export():
+    """Exporta todas as visitas em CSV (requer JWT; texto puro, fora do @response)."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "name", "created_at"])
+    for visit in export_visits():
+        writer.writerow([visit.id, visit.name, visit.created_at.isoformat()])
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=visits.csv"},
+    )

@@ -71,3 +71,31 @@ def test_list_filter_and_order(client, auth_headers):
 
     invalid = client.get("/v1/visits/?order=sideways")
     assert invalid.status_code == 422
+
+
+def test_list_cache_headers_and_invalidation(client, auth_headers):
+    first = client.get("/v1/visits/")
+    assert first.headers["X-Cache"] == "MISS"
+
+    second = client.get("/v1/visits/")
+    assert second.headers["X-Cache"] == "HIT"
+    assert second.get_json() == first.get_json()
+
+    client.post("/v1/visits/", json={"name": "Ada"}, headers=auth_headers)
+    third = client.get("/v1/visits/")
+    assert third.headers["X-Cache"] == "MISS"
+    assert [v["name"] for v in third.get_json()] == ["Ada"]
+
+
+def test_export_csv_requires_auth(client):
+    assert client.get("/v1/visits/export").status_code == 401
+
+
+def test_export_csv(client, auth_headers):
+    client.post("/v1/visits/", json={"name": "Ada"}, headers=auth_headers)
+    resp = client.get("/v1/visits/export", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.content_type.startswith("text/csv")
+    body = resp.get_data(as_text=True)
+    assert body.splitlines()[0] == "id,name,created_at"
+    assert ",Ada," in body

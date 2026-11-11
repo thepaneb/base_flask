@@ -1,4 +1,6 @@
 # Opcional local: `uvx pre-commit install` (o CI já roda ruff + pytest).
+# Exclui o venv (milhares de arquivos de terceiros; trava com antivírus).
+exclude: ^\.venv/
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.17.4

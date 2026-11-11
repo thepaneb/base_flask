@@ -56,9 +56,10 @@ code base_flask
 │   ├── observability.py              # request-id, log JSON, métricas Prometheus + /metrics
 │   └── modules/
 │       ├── hello_world/              # routes.py + service.py + repository.py + schemas.py
-│       ├── status/                   # routes.py + service.py + schemas.py (GET /status, checa o DB)
-│       ├── visits/                   # CRUD com banco + paginação (GET/POST / + GET/DELETE /<id>)
-│       └── auth/                     # JWT: register/login/refresh/me + User model
+│       ├── status/                   # routes.py + service.py + schemas.py (GET /status + GET /live)
+│       ├── visits/                   # CRUD + paginação + filtro + cache (GET/POST / + GET/DELETE /<id> + GET /export)
+│       ├── auth/                     # JWT: register/login/refresh/me + User model
+│       └── admin/                    # GET / (stats: contagens, uptime, versão; requer JWT)
 ├── tests/                            # conftest + test_routes/services/visits/cli (coverage ≥90%)
 ├── migrations/                       # Alembic (Flask-Migrate): `flask db migrate/upgrade`
 ├── dev/dependencies.sh               # uv sync + flask db upgrade (container postCreate)
@@ -86,10 +87,12 @@ code base_flask
 | `POST /v1/auth/login` | `{"access_token": "...", "refresh_token": "..."}` (401 se inválido; 30 req/min) |
 | `POST /v1/auth/refresh` | `{"access_token": "..."}` (requer refresh token)                           |
 | `GET /v1/auth/me`  | usuário do token (requer JWT; documentado com `security: bearerAuth`)             |
-| `GET /v1/visits/`  | `[{id, name, created_at}]` paginado (`?page=&page_size=&name=&order=`, header `X-Pagination`) |
+| `GET /v1/visits/`  | `[{id, name, created_at}]` paginado (`?page=&page_size=&name=&order=`, header `X-Pagination`; cache Redis/memória com header `X-Cache`) |
 | `POST /v1/visits/` | `{"name": "..."}` → 201 (**requer JWT**; nome vazio vira `"anonymous"`)          |
 | `GET /v1/visits/<id>` | uma visita (404 em JSON se não existir)                                       |
 | `DELETE /v1/visits/<id>` | remove, 204 (**requer JWT**; 404 em JSON se não existir)                   |
+| `GET /v1/visits/export` | CSV de todas as visitas (requer JWT)                                         |
+| `GET /v1/admin/`   | `{"users_total", "visits_total", "uptime_seconds", "version"}` (requer JWT)      |
 | `GET /openapi.json` | OpenAPI 3.1 spec (flask-smorest, com `securitySchemes` bearer)                   |
 | `GET /swagger-ui`  | Swagger UI interativa (CDN; botão Authorize usa o JWT)                            |
 | `GET /redoc`       | ReDoc (CDN)                                                                       |
@@ -160,6 +163,7 @@ docker compose up --build
 - **Dependencies:** edit `pyproject.toml`, run `uv lock && uv sync --group dev`, and commit both files.
 - **Environments:** `APP_ENV=development|testing|production` (`app/config.py`); copy `.env.example` to `.env` locally (never commit `.env`). Defina um `JWT_SECRET_KEY` forte em produção.
 - **Database:** `DATABASE_URL` (default SQLite local; compose usa volume em `/data`). Evolua só via `flask db migrate`/`upgrade` (nunca `create_all()` no runtime; `conftest.py` é a exceção, para o SQLite em memória dos testes).
+- **Cache:** `CACHE_TYPE` (`SimpleCache` local, `RedisCache` em produção via `CACHE_REDIS_URL` — o compose já sobe o Redis com volume próprio).
 - **Rate limiting:** default `200/hour` (`RATELIMIT_DEFAULT`), Redis via `RATELIMIT_STORAGE_URI` em produção com N workers; `@limiter.limit(...)` por rota (ex. login).
 - **Lint local (opcional):** `uvx pre-commit install` (o CI já roda ruff + pytest + audit).
 - **Port:** update `forwardPorts`/`portsAttributes` in `.devcontainer/devcontainer.json` and `--port` in `.vscode/launch.json`.

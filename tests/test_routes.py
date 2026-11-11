@@ -70,6 +70,7 @@ def test_openapi_lists_registered_routes(client):
         "/v1/",
         "/v1/visits/",
         "/v1/auth/register",
+        "/v1/admin/",
     } <= paths
 
 
@@ -77,6 +78,23 @@ def test_openapi_spec_is_valid(client):
     from openapi_spec_validator import validate_spec
 
     validate_spec(client.get("/openapi.json").get_json())
+
+
+def test_all_blueprint_routes_are_documented(client):
+    """Contrato: toda rota (exceto /metrics, texto puro) está no spec."""
+    import re
+
+    spec_paths = client.get("/openapi.json").get_json()["paths"]
+    for rule in client.application.url_map.iter_rules():
+        if rule.endpoint == "static" or str(rule) == "/metrics":
+            continue
+        if rule.endpoint.startswith("api-docs."):
+            continue  # blueprint de documentação não se auto-documenta
+        # Flask <int:id> -> OpenAPI {id}
+        path = re.sub(r"<(?:\w+:)?(\w+)>", r"{\1}", str(rule))
+        assert path in spec_paths, f"rota fora do spec: {rule}"
+        for method in rule.methods - {"HEAD", "OPTIONS"}:
+            assert method.lower() in spec_paths[path], f"{method} {rule} fora do spec"
 
 
 def test_metrics_exposes_prometheus_format(client):

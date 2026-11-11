@@ -10,8 +10,19 @@ services:
       APP_ENV: production
       APP_TIMEZONE: America/Sao_Paulo
       DATABASE_URL: sqlite:////data/base_flask.db
+      RATELIMIT_STORAGE_URI: redis://redis:6379/1
+      CACHE_TYPE: RedisCache
+      CACHE_REDIS_URL: redis://redis:6379/0
     volumes:
       - sqlite-data:/data
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    volumes:
+      - redis-data:/data
     restart: unless-stopped
 
     # Desenvolvimento com reload (descomente e suba com `docker compose up --build`):
@@ -21,3 +32,4 @@ services:
 
 volumes:
   sqlite-data:
+  redis-data:

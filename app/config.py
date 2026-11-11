@@ -28,6 +28,11 @@ class Config:
     RATELIMIT_STORAGE_URI = os.getenv("RATELIMIT_STORAGE_URI", "memory://")
     RATELIMIT_DEFAULT = os.getenv("RATELIMIT_DEFAULT", "200 per hour")
 
+    # Cache (Redis em produção: CACHE_TYPE=RedisCache + CACHE_REDIS_URL=redis://...)
+    CACHE_TYPE = os.getenv("CACHE_TYPE", "SimpleCache")
+    CACHE_REDIS_URL = os.getenv("CACHE_REDIS_URL", "redis://localhost:6379/0")
+    CACHE_DEFAULT_TIMEOUT = int(os.getenv("CACHE_DEFAULT_TIMEOUT", "60"))
+
     # Documentação OpenAPI (flask-smorest)
     API_TITLE = "base-flask"
     API_VERSION = "0.1.0"
@@ -57,6 +62,7 @@ class TestingConfig(Config):
     """Pytest: banco em memória, isolado por app."""
 
     TESTING = True
+    JWT_SECRET_KEY = "test-only-not-a-secret-0123456789abcdef"
     SQLALCHEMY_DATABASE_URI = "sqlite://"
     SQLALCHEMY_ENGINE_OPTIONS = {
         "poolclass": StaticPool,
