@@ -1,2 +1,5 @@
-# Garante LF em scripts shell (shebang quebra com CRLF no Linux).
+# Normaliza tudo para LF no repositório (evita divergência Windows/Linux,
+# ex. formatadores decidindo diferente por causa de CRLF).
+* text=auto eol=lf
+*.png binary
 *.sh text eol=lf
