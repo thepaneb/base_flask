@@ -1,7 +1,10 @@
 
 {
-	"name": "Python 3.14",
-	"image": "mcr.microsoft.com/devcontainers/python:3.14-bookworm",
+	"name": "Python 3.15",
+	"image": "mcr.microsoft.com/devcontainers/python:3.15-trixie",
+	"features": {
+		"ghcr.io/jsburckhardt/devcontainer-features/uv": {}
+	},
 	"containerEnv": {
 	  "TZ": "America/Sao_Paulo"
 	},
