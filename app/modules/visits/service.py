@@ -19,6 +19,12 @@ def list_visits(page=1, page_size=10, name=None, order="desc", repository=None):
     return repo.list(limit=page_size, offset=offset, name=name, order=order), repo.count(name=name)
 
 
+def export_visits(name=None, order="desc", repository=None):
+    """Retorna todas as visitas (para exportação CSV)."""
+    repo = repository or _repository
+    return repo.all(name=name, order=order)
+
+
 def get_visit(visit_id, repository=None):
     """Retorna uma visita pelo id (None se não existir)."""
     return (repository or _repository).get(visit_id)

@@ -22,3 +22,7 @@ class UserRepository:
     def get_by_id(self, user_id):
         """Retorna um usuário pelo id (None se não existir)."""
         return db.session.get(User, user_id)
+
+    def count(self):
+        """Total de usuários."""
+        return User.query.count()

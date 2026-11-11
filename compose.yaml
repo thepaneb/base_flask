@@ -9,9 +9,38 @@ services:
     environment:
       APP_ENV: production
       APP_TIMEZONE: America/Sao_Paulo
-      DATABASE_URL: sqlite:////data/base_flask.db
+      # Banco padrão do exemplo: Postgres (troque p/ sqlite:////data/base_flask.db se preferir arquivo).
+      DATABASE_URL: postgresql+psycopg://base:base@postgres:5432/base_flask
+      RATELIMIT_STORAGE_URI: redis://redis:6379/1
+      CACHE_TYPE: RedisCache
+      CACHE_REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: base
+      POSTGRES_PASSWORD: base
+      POSTGRES_DB: base_flask
     volumes:
-      - sqlite-data:/data
+      # PG18+: o mount é no pai; a imagem cria o subdir versionado sozinha.
+      - pg-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U base -d base_flask"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    volumes:
+      - redis-data:/data
     restart: unless-stopped
 
     # Desenvolvimento com reload (descomente e suba com `docker compose up --build`):
@@ -20,4 +49,5 @@ services:
     # command: gunicorn --bind 0.0.0.0:40000 --reload --workers 1 "app:create_app()"
 
 volumes:
-  sqlite-data:
+  pg-data:
+  redis-data:

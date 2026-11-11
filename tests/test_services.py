@@ -46,6 +46,10 @@ class FakeVisitRepository:
         items = sorted(items, key=lambda v: v.id, reverse=(order != "asc"))
         return items[offset : offset + limit]
 
+    def all(self, name=None, order="desc"):
+        items = [v for v in self.items if not name or name.lower() in v.name.lower()]
+        return sorted(items, key=lambda v: v.id, reverse=(order != "asc"))
+
     def count(self, name=None):
         return len([v for v in self.items if not name or name.lower() in v.name.lower()])
 

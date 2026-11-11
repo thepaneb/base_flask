@@ -56,9 +56,10 @@ code base_flask
 │   ├── observability.py              # request-id, log JSON, métricas Prometheus + /metrics
 │   └── modules/
 │       ├── hello_world/              # routes.py + service.py + repository.py + schemas.py
-│       ├── status/                   # routes.py + service.py + schemas.py (GET /status, checa o DB)
-│       ├── visits/                   # CRUD com banco + paginação (GET/POST / + GET/DELETE /<id>)
-│       └── auth/                     # JWT: register/login/refresh/me + User model
+│       ├── status/                   # routes.py + service.py + schemas.py (GET /status + GET /live)
+│       ├── visits/                   # CRUD + paginação + filtro + cache (GET/POST / + GET/DELETE /<id> + GET /export)
+│       ├── auth/                     # JWT: register/login/refresh/me + User model
+│       └── admin/                    # GET / (stats: contagens, uptime, versão; requer JWT)
 ├── tests/                            # conftest + test_routes/services/visits/cli (coverage ≥90%)
 ├── migrations/                       # Alembic (Flask-Migrate): `flask db migrate/upgrade`
 ├── dev/dependencies.sh               # uv sync + flask db upgrade (container postCreate)
@@ -66,13 +67,30 @@ code base_flask
 ├── .github/workflows/ci.yml          # ruff + pytest --cov + bandit + audit + build + smoke do container
 ├── .github/workflows/codeql.yml       # SAST (Python) semanal + por push/PR
 ├── .github/dependabot.yml            # uv + docker + github-actions (semanal)
-├── Dockerfile / compose.yaml         # multi-stage, non-root, entrypoint migrate, volume sqlite
+├── Dockerfile / compose.yaml         # multi-stage, non-root, entrypoint migrate, Postgres + Redis + volumes
 ├── gunicorn.conf.py                  # workers/timeout/logs via env (WEB_CONCURRENCY, ...)
 ├── .env.example                      # APP_ENV, APP_TIMEZONE, DATABASE_URL, CORS_ORIGINS, JWT_SECRET_KEY, API_PREFIX
 ├── pyproject.toml / uv.lock          # Flask, smorest, SQLAlchemy, JWT, limiter, prometheus, gunicorn, tzdata
 ├── .python-version                   # 3.15.2
 └── AGENTS.md                         # guide for coding agents
 ```
+
+## Arquitetura
+
+```mermaid
+flowchart LR
+    Client([Integrador]) --> Gunicorn[gunicorn :40000]
+    Gunicorn --> App[create_app()]
+    App --> Routes[routes.py<br/>HTTP + validação]
+    Routes --> Svc[service.py<br/>regra pura]
+    Svc --> Repo[repository.py<br/>SQLAlchemy]
+    Repo --> DB[(Postgres / SQLite)]
+    Routes -.->|cache X-Cache| Redis[(Redis)]
+    App -.-> Docs[/openapi.json<br/>swagger-ui / redoc]
+    Routes -.->|JWT + rate limit| Auth[JWT / limiter]
+```
+
+Camadas `routes > service > repository` sem sobreposição; `schemas.py` (marshmallow) valida entrada/saída e gera o OpenAPI; `observability.py` adiciona request-id, log JSON e métricas fora do fluxo principal.
 
 ## Endpoints (todas as rotas sob o prefixo de versão `/v1`)
 
@@ -86,10 +104,12 @@ code base_flask
 | `POST /v1/auth/login` | `{"access_token": "...", "refresh_token": "..."}` (401 se inválido; 30 req/min) |
 | `POST /v1/auth/refresh` | `{"access_token": "..."}` (requer refresh token)                           |
 | `GET /v1/auth/me`  | usuário do token (requer JWT; documentado com `security: bearerAuth`)             |
-| `GET /v1/visits/`  | `[{id, name, created_at}]` paginado (`?page=&page_size=&name=&order=`, header `X-Pagination`) |
+| `GET /v1/visits/`  | `[{id, name, created_at}]` paginado (`?page=&page_size=&name=&order=`, header `X-Pagination`; cache Redis/memória com header `X-Cache`) |
 | `POST /v1/visits/` | `{"name": "..."}` → 201 (**requer JWT**; nome vazio vira `"anonymous"`)          |
 | `GET /v1/visits/<id>` | uma visita (404 em JSON se não existir)                                       |
 | `DELETE /v1/visits/<id>` | remove, 204 (**requer JWT**; 404 em JSON se não existir)                   |
+| `GET /v1/visits/export` | CSV de todas as visitas (requer JWT)                                         |
+| `GET /v1/admin/`   | `{"users_total", "visits_total", "uptime_seconds", "version"}` (requer JWT)      |
 | `GET /openapi.json` | OpenAPI 3.1 spec (flask-smorest, com `securitySchemes` bearer)                   |
 | `GET /swagger-ui`  | Swagger UI interativa (CDN; botão Authorize usa o JWT)                            |
 | `GET /redoc`       | ReDoc (CDN)                                                                       |
@@ -159,7 +179,8 @@ docker compose up --build
 
 - **Dependencies:** edit `pyproject.toml`, run `uv lock && uv sync --group dev`, and commit both files.
 - **Environments:** `APP_ENV=development|testing|production` (`app/config.py`); copy `.env.example` to `.env` locally (never commit `.env`). Defina um `JWT_SECRET_KEY` forte em produção.
-- **Database:** `DATABASE_URL` (default SQLite local; compose usa volume em `/data`). Evolua só via `flask db migrate`/`upgrade` (nunca `create_all()` no runtime; `conftest.py` é a exceção, para o SQLite em memória dos testes).
+- **Database:** `DATABASE_URL` (SQLite local por padrão, zero-setup; compose usa **Postgres** em volume persistente). Evolua só via `flask db migrate`/`upgrade` (nunca `create_all()` no runtime; `conftest.py` é a exceção, para o SQLite em memória dos testes). As migrations `create_table` são portáteis entre SQLite e Postgres.
+- **Cache:** `CACHE_TYPE` (`SimpleCache` local, `RedisCache` em produção via `CACHE_REDIS_URL` — o compose já sobe o Redis com volume próprio).
 - **Rate limiting:** default `200/hour` (`RATELIMIT_DEFAULT`), Redis via `RATELIMIT_STORAGE_URI` em produção com N workers; `@limiter.limit(...)` por rota (ex. login).
 - **Lint local (opcional):** `uvx pre-commit install` (o CI já roda ruff + pytest + audit).
 - **Port:** update `forwardPorts`/`portsAttributes` in `.devcontainer/devcontainer.json` and `--port` in `.vscode/launch.json`.
