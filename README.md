@@ -67,13 +67,30 @@ code base_flask
 ├── .github/workflows/ci.yml          # ruff + pytest --cov + bandit + audit + build + smoke do container
 ├── .github/workflows/codeql.yml       # SAST (Python) semanal + por push/PR
 ├── .github/dependabot.yml            # uv + docker + github-actions (semanal)
-├── Dockerfile / compose.yaml         # multi-stage, non-root, entrypoint migrate, volume sqlite
+├── Dockerfile / compose.yaml         # multi-stage, non-root, entrypoint migrate, Postgres + Redis + volumes
 ├── gunicorn.conf.py                  # workers/timeout/logs via env (WEB_CONCURRENCY, ...)
 ├── .env.example                      # APP_ENV, APP_TIMEZONE, DATABASE_URL, CORS_ORIGINS, JWT_SECRET_KEY, API_PREFIX
 ├── pyproject.toml / uv.lock          # Flask, smorest, SQLAlchemy, JWT, limiter, prometheus, gunicorn, tzdata
 ├── .python-version                   # 3.15.2
 └── AGENTS.md                         # guide for coding agents
 ```
+
+## Arquitetura
+
+```mermaid
+flowchart LR
+    Client([Integrador]) --> Gunicorn[gunicorn :40000]
+    Gunicorn --> App[create_app()]
+    App --> Routes[routes.py<br/>HTTP + validação]
+    Routes --> Svc[service.py<br/>regra pura]
+    Svc --> Repo[repository.py<br/>SQLAlchemy]
+    Repo --> DB[(Postgres / SQLite)]
+    Routes -.->|cache X-Cache| Redis[(Redis)]
+    App -.-> Docs[/openapi.json<br/>swagger-ui / redoc]
+    Routes -.->|JWT + rate limit| Auth[JWT / limiter]
+```
+
+Camadas `routes > service > repository` sem sobreposição; `schemas.py` (marshmallow) valida entrada/saída e gera o OpenAPI; `observability.py` adiciona request-id, log JSON e métricas fora do fluxo principal.
 
 ## Endpoints (todas as rotas sob o prefixo de versão `/v1`)
 
@@ -162,7 +179,7 @@ docker compose up --build
 
 - **Dependencies:** edit `pyproject.toml`, run `uv lock && uv sync --group dev`, and commit both files.
 - **Environments:** `APP_ENV=development|testing|production` (`app/config.py`); copy `.env.example` to `.env` locally (never commit `.env`). Defina um `JWT_SECRET_KEY` forte em produção.
-- **Database:** `DATABASE_URL` (default SQLite local; compose usa volume em `/data`). Evolua só via `flask db migrate`/`upgrade` (nunca `create_all()` no runtime; `conftest.py` é a exceção, para o SQLite em memória dos testes).
+- **Database:** `DATABASE_URL` (SQLite local por padrão, zero-setup; compose usa **Postgres** em volume persistente). Evolua só via `flask db migrate`/`upgrade` (nunca `create_all()` no runtime; `conftest.py` é a exceção, para o SQLite em memória dos testes). As migrations `create_table` são portáteis entre SQLite e Postgres.
 - **Cache:** `CACHE_TYPE` (`SimpleCache` local, `RedisCache` em produção via `CACHE_REDIS_URL` — o compose já sobe o Redis com volume próprio).
 - **Rate limiting:** default `200/hour` (`RATELIMIT_DEFAULT`), Redis via `RATELIMIT_STORAGE_URI` em produção com N workers; `@limiter.limit(...)` por rota (ex. login).
 - **Lint local (opcional):** `uvx pre-commit install` (o CI já roda ruff + pytest + audit).
