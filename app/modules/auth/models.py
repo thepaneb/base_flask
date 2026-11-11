@@ -14,3 +14,12 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(UTC))
+
+
+class RevokedToken(db.Model):
+    """JTIs revogados (logout + rotação). Expirados são limpos ao consultar."""
+
+    __tablename__ = "revoked_tokens"
+
+    jti = db.Column(db.String(64), primary_key=True)
+    expires_at = db.Column(db.DateTime, nullable=False)

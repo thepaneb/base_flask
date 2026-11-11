@@ -1,7 +1,8 @@
-"""Regra de negócio do módulo admin (pura: sem `flask`, sem banco direto)."""
+"""Regra de negócio do módulo admin (compõe services; sem banco direto)."""
 
 import time
 
+from app.extensions import cache
 from app.modules.auth.repository import UserRepository
 from app.modules.visits.repository import VisitRepository
 
@@ -18,3 +19,9 @@ def get_stats(version, users=None, visits=None):
         "uptime_seconds": round(time.monotonic() - _started_at, 1),
         "version": version,
     }
+
+
+def clear_cache():
+    """Limpa todo o cache da aplicação (blocklist vive no banco: intacta)."""
+    cache.clear()
+    return True

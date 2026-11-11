@@ -15,3 +15,4 @@ class StatusSchema(ma.Schema):
     status = ma.fields.Str(required=True)
     timestamp = ma.fields.Str(required=True)
     database = ma.fields.Str(required=True)
+    migrations = ma.fields.Str(required=True)

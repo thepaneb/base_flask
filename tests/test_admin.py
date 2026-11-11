@@ -23,3 +23,17 @@ def test_dashboard_renders_html(client, auth_headers):
     assert resp.content_type.startswith("text/html")
     body = resp.get_data(as_text=True)
     assert "Usuários" in body and "Visitas" in body
+
+
+def test_cache_clear_requires_auth(client):
+    assert client.post("/v1/admin/cache/clear").status_code == 401
+
+
+def test_cache_clear_invalidates_list_cache(client, auth_headers):
+    client.post("/v1/visits/", json={"name": "Ada"}, headers=auth_headers)
+    assert client.get("/v1/visits/").headers["X-Cache"] == "MISS"
+    assert client.get("/v1/visits/").headers["X-Cache"] == "HIT"
+    resp = client.post("/v1/admin/cache/clear", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.get_json() == {"cleared": True}
+    assert client.get("/v1/visits/").headers["X-Cache"] == "MISS"

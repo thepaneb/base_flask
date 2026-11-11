@@ -1,28 +1,38 @@
 """Acesso aos dados do módulo auth."""
 
-from app.extensions import cache, db
+from datetime import UTC, datetime, timedelta
 
-from .models import User
+from app.extensions import db
 
-BLOCKLIST_PREFIX = "jwt:blocked:"
+from .models import RevokedToken, User
 
 
 class TokenBlocklist:
-    """JTIs revogados (logout + rotação de refresh). TTL = vida restante do token."""
+    """JTIs revogados (logout + rotação). Tabela própria: não é cache."""
 
     @staticmethod
-    def _key(jti):
-        return f"{BLOCKLIST_PREFIX}{jti}"
+    def add(jti, ttl_seconds):
+        """Revoga um token até expirar (idempotente por PK)."""
+        expires_at = datetime.now(UTC) + timedelta(seconds=int(ttl_seconds))
+        if db.session.get(RevokedToken, jti) is None:
+            db.session.add(RevokedToken(jti=jti, expires_at=expires_at))
+            db.session.commit()
 
-    @classmethod
-    def add(cls, jti, ttl_seconds):
-        """Revoga um token até expirar."""
-        cache.set(cls._key(jti), True, timeout=int(ttl_seconds))
-
-    @classmethod
-    def contains(cls, jti):
-        """Verifica se um token foi revogado."""
-        return bool(cache.get(cls._key(jti)))
+    @staticmethod
+    def contains(jti):
+        """Verifica se um token foi revogado (limpa expirados de passagem)."""
+        now = datetime.now(UTC)
+        expired = RevokedToken.query.filter(RevokedToken.expires_at <= now).all()
+        for token in expired:
+            db.session.delete(token)
+        db.session.commit()
+        token = db.session.get(RevokedToken, jti)
+        if token is None:
+            return False
+        stored = (
+            token.expires_at if token.expires_at.tzinfo else token.expires_at.replace(tzinfo=UTC)
+        )
+        return stored > now
 
 
 class UserRepository:

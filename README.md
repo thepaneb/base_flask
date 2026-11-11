@@ -144,7 +144,7 @@ Run the test suite (`tests/`, pytest, coverage gate ≥90%):
 uv run --group dev pytest --cov=app --cov-report=term --cov-fail-under=90 -v
 ```
 
-`tests/conftest.py` sobe um app isolado por teste (`TestingConfig`, SQLite em memória); `test_services.py` cobre regras puras sem HTTP; `test_visits.py` cobre a persistência; `test_cli.py` cobre o `flask seed`.
+`tests/conftest.py` sobe um app isolado por teste (`TestingConfig`, upgrade real das migrations em SQLite em memória); `test_services.py` cobre regras puras sem HTTP; `test_visits.py` cobre a persistência; `test_cli.py` cobre o `flask seed`; `test_contract.py` valida as respostas contra o OpenAPI.
 
 ## Database (Alembic via Flask-Migrate)
 
@@ -189,7 +189,8 @@ docker compose up --build
 - **Environments:** `APP_ENV=development|testing|production` (`app/config.py`); copy `.env.example` to `.env` locally (never commit `.env`). Defina um `JWT_SECRET_KEY` forte e `LOG_LEVEL` em produção.
 - **Database:** `DATABASE_URL` (SQLite local por padrão, zero-setup; compose usa **Postgres** em volume persistente). Evolua só via `flask db migrate`/`upgrade` (nunca `create_all()` no runtime; `conftest.py` é a exceção, para o SQLite em memória dos testes). As migrations `create_table` são portáteis entre SQLite e Postgres.
 - **Cache:** `CACHE_TYPE` (`SimpleCache` local, `RedisCache` em produção via `CACHE_REDIS_URL` — o compose já sobe o Redis com volume próprio).
-- **Rate limiting:** default `200/hour` (`RATELIMIT_DEFAULT`), Redis via `RATELIMIT_STORAGE_URI` em produção com N workers; `@limiter.limit(...)` por rota (ex. login).
+- **Rate limiting:** default `200/hour` (`RATELIMIT_DEFAULT`), Redis via `RATELIMIT_STORAGE_URI` em produção com N workers; `@limiter.limit(...)` por rota (ex. login); respostas incluem headers `X-RateLimit-*`.
+- **Release:** versionamento + CHANGELOG automáticos via release-please (push na `main`, conventional commits).
 - **Lint local (opcional):** `uvx pre-commit install` (ruff + hooks básicos; o CI também roda pre-commit, além de ruff + pytest + audit).
 - **Templates:** `CONTRIBUTING.md`, issue/PR templates em `.github/`, decisões em `docs/adr/`.
 - **Port:** update `forwardPorts`/`portsAttributes` in `.devcontainer/devcontainer.json` and `--port` in `.vscode/launch.json`.

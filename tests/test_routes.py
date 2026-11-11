@@ -36,6 +36,7 @@ def test_status_returns_ok(client):
     data = resp.get_json()
     assert data["status"] == "ok"
     assert data["database"] == "ok"
+    assert data["migrations"] == "ok"
     datetime.fromisoformat(data["timestamp"])
 
 
@@ -54,6 +55,18 @@ def test_status_degraded_when_db_unreachable(client, monkeypatch):
     data = resp.get_json()
     assert data["status"] == "degraded"
     assert data["database"] == "unreachable"
+
+
+def test_status_degraded_when_migrations_pending(client, monkeypatch):
+    import app.modules.status.service as status_service
+
+    monkeypatch.setattr(status_service, "check_migrations", lambda: False)
+    resp = client.get("/v1/status")
+    assert resp.status_code == 503
+    data = resp.get_json()
+    assert data["status"] == "degraded"
+    assert data["database"] == "ok"
+    assert data["migrations"] == "pending"
 
 
 def test_openapi_lists_registered_routes(client):
@@ -129,6 +142,13 @@ def test_method_not_allowed_returns_json_405(client):
     resp = client.post("/v1/status")
     assert resp.status_code == 405
     assert resp.get_json() == {"error": "method not allowed"}
+
+
+def test_rate_limit_headers_present(client):
+    resp = client.get("/v1/live")
+    assert resp.status_code == 200
+    assert resp.headers["X-RateLimit-Limit"] == "200"
+    assert int(resp.headers["X-RateLimit-Remaining"]) >= 0
 
 
 def test_rate_limit_returns_json_429():

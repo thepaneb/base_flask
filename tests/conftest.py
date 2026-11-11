@@ -1,17 +1,18 @@
 """Fixtures compartilhadas (app isolado por teste, banco em memória)."""
 
 import pytest
+from flask_migrate import upgrade
 
 from app import create_app
 from app.config import TestingConfig
-from app.extensions import cache, db
+from app.extensions import cache
 
 
 @pytest.fixture()
 def client():
     app = create_app(TestingConfig)
     with app.app_context():
-        db.create_all()
+        upgrade()  # schema real via migrations (nunca create_all no runtime)
         cache.clear()
     with app.test_client() as client:
         yield client

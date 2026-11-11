@@ -29,6 +29,7 @@ class Config:
     # Rate limiting (Redis em produção com N workers: RATELIMIT_STORAGE_URI=redis://...)
     RATELIMIT_STORAGE_URI = os.getenv("RATELIMIT_STORAGE_URI", "memory://")
     RATELIMIT_DEFAULT = os.getenv("RATELIMIT_DEFAULT", "200 per hour")
+    RATELIMIT_HEADERS_ENABLED = True
 
     # Cache (Redis em produção: CACHE_TYPE=RedisCache + CACHE_REDIS_URL=redis://...)
     CACHE_TYPE = os.getenv("CACHE_TYPE", "SimpleCache")

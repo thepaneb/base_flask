@@ -33,7 +33,7 @@
 - Testes: `uv run --group dev pytest --cov=app --cov-report=term --cov-fail-under=90` (`conftest.py` + `test_routes/services/visits/cli/auth.py`; regra: cobrir rota nova e regra nova).
 - Lint: `uv run --group dev ruff check app tests` e `ruff format --check app tests` (config em `pyproject.toml`).
 - `compose.yaml`: app (gunicorn) + `postgres:18-alpine` (volume `pg-data`) + `redis:8-alpine` (volume `redis-data`); entrypoint aplica migrations; healthcheck no `/v1/live`.
-- Auditoria: `uv run --group dev pip-audit --desc` (deps) + `uv run --group dev bandit -r app` (SAST; CodeQL no CI).
+- Auditoria: `uv run --group dev pip-audit --desc` (deps) + `uv run --group dev bandit -r app` (SAST; CodeQL no CI). Release automática via release-please (conventional commits).
 - Banco padrão local é SQLite (zero-setup); compose usa Postgres (`DATABASE_URL` + `psycopg`, migrations portáteis). Cache/rate-limit usam Redis no compose, `SimpleCache`+memória local.
 - Atualizar deps: `uv lock --upgrade` e depois `uv sync`. Commite `pyproject.toml` + `uv.lock` juntos.
 

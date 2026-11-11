@@ -1,4 +1,4 @@
-"""Regra do health-check (a checagem do banco usa a extensão, resto é puro)."""
+"""Regra do health-check (a checagem usa as extensões; o resto é puro)."""
 
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -6,6 +6,8 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import text
 
 from app.extensions import db
+
+from .migrations_check import check_migrations
 
 
 def check_database():
@@ -18,10 +20,13 @@ def check_database():
 
 
 def build_status(timezone):
-    """Monta o payload do health-check (inclui saúde do banco)."""
+    """Monta o payload do health-check (banco + migrations em dia)."""
     db_ok = check_database()
+    migrations_ok = check_migrations() if db_ok else False
+    ok = db_ok and migrations_ok
     return {
-        "status": "ok" if db_ok else "degraded",
+        "status": "ok" if ok else "degraded",
         "timestamp": datetime.now(ZoneInfo(timezone)).isoformat(),
         "database": "ok" if db_ok else "unreachable",
+        "migrations": "ok" if migrations_ok else "pending",
     }
