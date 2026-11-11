@@ -1,0 +1,23 @@
+# Exemplo: sobe a aplicação (build da Dockerfile) na porta 40000.
+# Uso: docker compose up --build
+services:
+  app:
+    build: .
+    image: base-flask:latest
+    ports:
+      - "40000:40000"
+    environment:
+      APP_ENV: production
+      APP_TIMEZONE: America/Sao_Paulo
+      DATABASE_URL: sqlite:////data/base_flask.db
+    volumes:
+      - sqlite-data:/data
+    restart: unless-stopped
+
+    # Desenvolvimento com reload (descomente e suba com `docker compose up --build`):
+    # volumes:
+    #   - ./app:/srv/app/app
+    # command: gunicorn --bind 0.0.0.0:40000 --reload --workers 1 "app:create_app()"
+
+volumes:
+  sqlite-data:

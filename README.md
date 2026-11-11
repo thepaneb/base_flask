@@ -8,6 +8,7 @@
   <img alt="Flask" src="https://img.shields.io/badge/Flask-3.x-000000?logo=flask&logoColor=white">
   <img alt="uv" src="https://img.shields.io/badge/uv-managed-5C5CFF">
   <img alt="Dev Containers" src="https://img.shields.io/badge/VS%20Code-Dev%20Containers-007ACC?logo=visualstudiocode&logoColor=white">
+  <img alt="CI" src="https://github.com/thepaneb/base_flask/actions/workflows/ci.yml/badge.svg">
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
@@ -45,12 +46,20 @@ code base_flask
 │   ├── extensions.json               # recommends the Dev Containers extension
 │   └── launch.json                   # "Flask Debugger" (debugpy)
 ├── app/
-│   ├── __init__.py                   # creates the Flask app, registers blueprints
+│   ├── __init__.py                   # create_app() factory, registers blueprints + errors
+│   ├── config.py                     # Development/Testing/Production via APP_ENV (+ TZ, DB, OpenAPI)
+│   ├── errors.py                     # JSON 404/405/500 handlers
+│   ├── extensions.py                 # db = SQLAlchemy() (init na factory)
 │   └── modules/
-│       ├── hello_world/__init__.py   # GET /, /hello-world, /hello_world
-│       └── status/__init__.py        # GET /status (health-check)
+│       ├── hello_world/              # routes.py + service.py + repository.py + schemas.py
+│       ├── status/                   # routes.py + service.py + schemas.py (GET /status, checa o DB)
+│       └── visits/                   # exemplo com banco: routes + service + repository + models + schemas
+├── tests/                            # conftest (app TestingConfig) + test_routes/services/visits
 ├── dev/dependencies.sh               # uv sync --frozen (container postCreate)
-├── pyproject.toml / uv.lock          # dependencies (Flask, requests, tzdata)
+├── .github/workflows/ci.yml          # ruff + pytest + pip-audit + docker build
+├── Dockerfile / compose.yaml         # exemplo prod (gunicorn :40000, volume sqlite) + .dockerignore
+├── .env.example                      # APP_ENV, APP_TIMEZONE, DATABASE_URL
+├── pyproject.toml / uv.lock          # dependencies (Flask, smorest, SQLAlchemy, gunicorn, tzdata)
 ├── .python-version                   # 3.15.2
 └── AGENTS.md                         # guide for coding agents
 ```
@@ -59,9 +68,16 @@ code base_flask
 
 | Route              | Response                                                                          |
 | ------------------ | --------------------------------------------------------------------------------- |
-| `GET /`            | `{"message": "hello world", "timestamp": ...}`                                    |
-| `GET /hello-world` | same (hyphen and underscore aliases)                                              |
-| `GET /status`      | `{"status": "ok"/"degraded", "timestamp", "python", "dependencia": {...}}` (200 / 502 / 503) |
+| `GET /`            | `{"message": "Hello, world!", "timestamp": ...}`                                  |
+| `GET /hello-world?name=Ana&lang=pt` | `{"message": "Olá, Ana!", ...}` (langs: en/pt/es, fallback en)        |
+| `GET /status`      | `{"status": "ok", "database": "ok", "timestamp": ...}` (200; 503 se degradado) |
+| `GET /openapi.json` | OpenAPI 3.1 spec (flask-smorest)                                                 |
+| `GET /swagger-ui`  | Swagger UI interativa (CDN)                                                       |
+| `GET /redoc`       | ReDoc (CDN)                                                                       |
+| `GET /visits/`     | `[{id, name, created_at}]` (SQLite via SQLAlchemy)                               |
+| `POST /visits/`    | `{"name": "..."}` → 201 (nome vazio vira `"anonymous"`)                          |
+
+Query params e respostas são validados por schemas marshmallow (`schemas.py` de cada módulo) e aparecem no spec.
 
 ## Run and debug
 
@@ -82,15 +98,40 @@ Quick check without starting a server:
 uv run python -c "import app; c=app.app.test_client(); print(c.get('/').get_json()); print(c.get('/status').status_code)"
 ```
 
-## Add a new module
+Run the test suite (`tests/`, pytest):
 
-1. Create `app/modules/<name>/__init__.py` exposing `bp = Blueprint("<name>", __name__)` with its routes.
-2. Register it in `app/__init__.py`: `from app.modules.<name> import bp as <name>_bp` + `app.register_blueprint(<name>_bp)`.
-3. Don't import `app` inside modules (avoids cycles). Answer with `jsonify`, timestamps with `ZoneInfo("America/Sao_Paulo")`, external HTTP only over `https://` with `timeout=(5, 5)` and `try/except requests.RequestException`.
+```bash
+uv run --group dev pytest -v
+```
+
+`tests/conftest.py` sobe um app isolado por teste (`TestingConfig`, SQLite em memória); `test_services.py` cobre regras puras sem HTTP; `test_visits.py` cobre a persistência.
+
+## Docker (exemplo)
+
+Imagem de produção (`python:3.15-slim-trixie` + deps do `uv.lock`, servida com gunicorn em `0.0.0.0:40000`):
+
+```bash
+docker build -t base-flask .
+docker run -p 40000:40000 base-flask
+# ou
+docker compose up --build
+```
+
+`compose.yaml` define `APP_TIMEZONE=America/Sao_Paulo` e expõe a porta `40000`. Para dev com reload, descomente o bloco `volumes`/`command` no compose. Validados: build, `compose up`, `GET /status`, `/hello-world?name=Ana&lang=pt` e `/openapi.json`.
+
+## Add a new module (`routes > service > repository`)
+
+1. Create `app/modules/<name>/` with `routes.py` (thin: reads request/config, calls one service, returns `jsonify`), `service.py` (pure business rule, no `flask`), `schemas.py` (marshmallow query/response), `models.py` (SQLAlchemy, if it owns tables) and `repository.py` **only if the module owns data** (re-export `bp` in `__init__.py`; import models there so `create_all()` sees them).
+2. Use the smorest `Blueprint`: `@bp.arguments(QuerySchema, location="query")` + `@bp.response(200, ResponseSchema)` — validation and OpenAPI come for free.
+3. Register it in `create_app()` via `api.register_blueprint(<name>_bp)` (plain `app.register_blueprint` skips the docs).
+4. Cover it in `tests/` (`test_routes.py` for HTTP incl. spec paths, `test_services.py` for pure rules; use the `client` fixture from `conftest.py`).
+5. Don't import `app` inside modules (use `app.extensions.db`, `current_app.config`). Timestamps with `ZoneInfo(current_app.config["TIMEZONE"])`; external HTTP (if any) only over `https://` with `timeout=(5, 5)` and `try/except` mapped to 502/503 in the route.
 
 ## Customize
 
 - **Dependencies:** edit `pyproject.toml`, run `uv lock && uv sync --group dev`, and commit both files.
+- **Environments:** `APP_ENV=development|testing|production` (`app/config.py`); copy `.env.example` to `.env` locally (never commit `.env`).
+- **Database:** `DATABASE_URL` (default local SQLite file; compose maps a volume at `/data`). Schema is created via `db.create_all()` — for real projects, adopt Flask-Migrate/Alembic.
 - **Port:** update `forwardPorts`/`portsAttributes` in `.devcontainer/devcontainer.json` and `--port` in `.vscode/launch.json`.
 - **Security audit:** `uv run --group dev pip-audit --desc`.
 
