@@ -39,6 +39,12 @@ def test_status_returns_ok(client):
     datetime.fromisoformat(data["timestamp"])
 
 
+def test_live_returns_ok_without_db(client):
+    resp = client.get("/v1/live")
+    assert resp.status_code == 200
+    assert resp.get_json() == {"status": "ok"}
+
+
 def test_status_degraded_when_db_unreachable(client, monkeypatch):
     import app.modules.status.service as status_service
 
@@ -57,7 +63,14 @@ def test_openapi_lists_registered_routes(client):
     assert data["openapi"].startswith("3.")
     assert data["info"]["title"] == "base-flask"
     paths = set(data["paths"])
-    assert {"/v1/status", "/v1/hello-world", "/v1/", "/v1/visits/", "/v1/auth/register"} <= paths
+    assert {
+        "/v1/status",
+        "/v1/live",
+        "/v1/hello-world",
+        "/v1/",
+        "/v1/visits/",
+        "/v1/auth/register",
+    } <= paths
 
 
 def test_openapi_spec_is_valid(client):

@@ -6,15 +6,15 @@ import marshmallow as ma
 class RegisterSchema(ma.Schema):
     """Corpo do POST /auth/register."""
 
-    username = ma.fields.Str(required=True)
-    password = ma.fields.Str(required=True, load_only=True)
+    username = ma.fields.Str(required=True, metadata={"example": "ada"})
+    password = ma.fields.Str(required=True, load_only=True, metadata={"example": "s3cret"})
 
 
 class LoginSchema(ma.Schema):
     """Corpo do POST /auth/login."""
 
-    username = ma.fields.Str(required=True)
-    password = ma.fields.Str(required=True, load_only=True)
+    username = ma.fields.Str(required=True, metadata={"example": "ada"})
+    password = ma.fields.Str(required=True, load_only=True, metadata={"example": "s3cret"})
 
 
 class TokenPairSchema(ma.Schema):

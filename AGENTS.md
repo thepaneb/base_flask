@@ -15,7 +15,7 @@
 - `app/modules/visits/`: exemplo com banco (CRUD + `@paginate` com header `X-Pagination` + filtro `?name=`/`?order=`); `GET/POST /visits/`, `GET/DELETE /visits/<id>`.
 - `app/modules/<nome>/`: `routes.py` (bp smorest + views finas, `@paginate` quando listar), `service.py` (regra pura, sem `flask`), `schemas.py` (marshmallow: query + resposta), `models.py` + `repository.py` (**só** se o módulo tem dado — importar models no `__init__.py` para o migrate enxergar), `__init__.py` (reexporta `bp`).
 - Schema do banco evolui só via `flask db migrate -m "..."` + `flask db upgrade` (`migrations/`); nunca `create_all()` no runtime (`conftest.py` é a exceção, SQLite em memória). `flask --app app seed` popula exemplo.
-- `app/modules/status/`: `GET /status` com `StatusSchema`.
+- `app/modules/status/`: `GET /v1/status` (readiness, com `StatusSchema`) e `GET /v1/live` (liveness, `LiveSchema`).
 - `app/modules/hello_world/`: exemplo completo (`GET /`, `/hello-world`, `/hello_world`, com `?name=&lang=`, `HelloQuerySchema`/`HelloSchema`).
 - Docs OpenAPI 3.1 via flask-smorest (config em `app/config.py`): `GET /openapi.json`, `/swagger-ui`, `/redoc`. Sem módulo `docs` — o spec é gerado dos blueprints.
 - `tests/`: `conftest.py` (fixture `client` + `auth_headers`, `TestingConfig` + SQLite em memória), `test_routes.py`, `test_services.py` (regras puras + dublês de repository), `test_visits.py`, `test_auth.py`, `test_cli.py`.
@@ -30,8 +30,8 @@
 - Teste rápido de rotas: `uv run python -c "import app; c=app.app.test_client(); print(c.get('/v1/status').get_json())"`.
 - Testes: `uv run --group dev pytest --cov=app --cov-report=term --cov-fail-under=90` (`conftest.py` + `test_routes/services/visits/cli/auth.py`; regra: cobrir rota nova e regra nova).
 - Lint: `uv run --group dev ruff check app tests` e `ruff format --check app tests` (config em `pyproject.toml`).
-- Docker (exemplo): `docker build -t base-flask .` / `docker compose up --build` (gunicorn `:40000`, `Dockerfile` + `compose.yaml`).
-- Auditoria: `uv run --group dev pip-audit --desc`.
+- Docker (exemplo): `docker build -t base-flask .` / `docker compose up --build` (multi-stage, non-root, gunicorn via `gunicorn.conf.py` na `:40000`, healthcheck no `/v1/live`).
+- Auditoria: `uv run --group dev pip-audit --desc` (deps) + `uv run --group dev bandit -r app` (SAST; CodeQL no CI).
 - Atualizar deps: `uv lock --upgrade` e depois `uv sync`. Commite `pyproject.toml` + `uv.lock` juntos.
 
 ## Convenções (camadas sem sobreposição)

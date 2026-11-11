@@ -25,6 +25,7 @@ COPY --from=builder /srv/app/.venv /srv/app/.venv
 COPY app/ ./app/
 COPY migrations/ ./migrations/
 COPY entrypoint.sh ./entrypoint.sh
+COPY gunicorn.conf.py ./gunicorn.conf.py
 
 RUN useradd --create-home --uid 10000 appuser \
     && mkdir -p /data && chown -R appuser:appuser /srv/app /data
@@ -33,8 +34,8 @@ USER appuser
 EXPOSE 40000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-  CMD python -c "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:40000/v1/status').status == 200 else 1)"
+  CMD python -c "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:40000/v1/live').status == 200 else 1)"
 
 # O entrypoint aplica `flask db upgrade` e chama o CMD (gunicorn).
 ENTRYPOINT ["/srv/app/entrypoint.sh"]
-CMD ["gunicorn", "--bind", "0.0.0.0:40000", "--workers", "2", "app:create_app()"]
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "app:create_app()"]

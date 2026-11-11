@@ -1,10 +1,16 @@
-"""Schema (marshmallow) do health-check."""
+"""Schemas (marshmallow) do health-check e liveness."""
 
 import marshmallow as ma
 
 
+class LiveSchema(ma.Schema):
+    """Resposta do liveness (processo no ar)."""
+
+    status = ma.fields.Str(required=True)
+
+
 class StatusSchema(ma.Schema):
-    """Formato da resposta do health-check."""
+    """Resposta do readiness (serviço + banco)."""
 
     status = ma.fields.Str(required=True)
     timestamp = ma.fields.Str(required=True)

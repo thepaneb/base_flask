@@ -16,6 +16,7 @@ jobs:
       - run: uv sync --locked --group dev
       - run: uv run ruff check app tests
       - run: uv run ruff format --check app tests
+      - run: uv run bandit -r app -q
       - run: uv run pytest --cov=app --cov-report=term --cov-fail-under=90 -v
       - run: uv run pip-audit --desc
 
@@ -24,3 +25,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t base-flask .
+      - run: docker compose up -d --wait --wait-timeout 120
+      - name: smoke test
+        run: |
+          set -e
+          curl -fsS http://127.0.0.1:40000/v1/live | grep -q '"status": *"ok"'
+          curl -fsS http://127.0.0.1:40000/v1/status | grep -q '"database": *"ok"'
+          curl -fsS http://127.0.0.1:40000/openapi.json | grep -q '"openapi"'
+          TOKEN=$(curl -fsS -X POST http://127.0.0.1:40000/v1/auth/register \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"ci","password":"s3cret"}' | grep -o '"access_token": *"[^"]*"' | cut -d'"' -f4)
+          curl -fsS http://127.0.0.1:40000/v1/auth/me -H "Authorization: Bearer $TOKEN" | grep -q '"username": *"ci"'
+          curl -fsS -X POST http://127.0.0.1:40000/v1/visits/ \
+            -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+            -d '{"name":"CI"}' | grep -q '"name": *"CI"'
+      - run: docker compose down -v

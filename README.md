@@ -63,9 +63,11 @@ code base_flask
 ├── migrations/                       # Alembic (Flask-Migrate): `flask db migrate/upgrade`
 ├── dev/dependencies.sh               # uv sync + flask db upgrade (container postCreate)
 ├── .pre-commit-config.yaml           # ruff + hooks básicos (opcional local: `uvx pre-commit install`)
-├── .github/workflows/ci.yml          # ruff + pytest --cov + pip-audit + docker build
+├── .github/workflows/ci.yml          # ruff + pytest --cov + bandit + audit + build + smoke do container
+├── .github/workflows/codeql.yml       # SAST (Python) semanal + por push/PR
 ├── .github/dependabot.yml            # uv + docker + github-actions (semanal)
-├── Dockerfile / compose.yaml         # prod non-root (appuser), entrypoint aplica migrations, volume sqlite
+├── Dockerfile / compose.yaml         # multi-stage, non-root, entrypoint migrate, volume sqlite
+├── gunicorn.conf.py                  # workers/timeout/logs via env (WEB_CONCURRENCY, ...)
 ├── .env.example                      # APP_ENV, APP_TIMEZONE, DATABASE_URL, CORS_ORIGINS, JWT_SECRET_KEY, API_PREFIX
 ├── pyproject.toml / uv.lock          # Flask, smorest, SQLAlchemy, JWT, limiter, prometheus, gunicorn, tzdata
 ├── .python-version                   # 3.15.2
@@ -78,7 +80,8 @@ code base_flask
 | ------------------ | --------------------------------------------------------------------------------- |
 | `GET /v1/`         | `{"message": "Hello, world!", "timestamp": ...}`                                  |
 | `GET /v1/hello-world?name=Ana&lang=pt` | `{"message": "Olá, Ana!", ...}` (langs: en/pt/es, fallback en)      |
-| `GET /v1/status`   | `{"status": "ok", "database": "ok", "timestamp": ...}` (200; 503 se degradado) |
+| `GET /v1/status`   | readiness: `{"status": "ok", "database": "ok", ...}` (200; 503 se degradado) |
+| `GET /v1/live`     | liveness: `{"status": "ok"}` (sempre 200; para probes/healthcheck)               |
 | `POST /v1/auth/register` | `{"username": "..."}` → 201 (409 se username em uso)                       |
 | `POST /v1/auth/login` | `{"access_token": "...", "refresh_token": "..."}` (401 se inválido; 30 req/min) |
 | `POST /v1/auth/refresh` | `{"access_token": "..."}` (requer refresh token)                           |
@@ -92,7 +95,7 @@ code base_flask
 | `GET /redoc`       | ReDoc (CDN)                                                                       |
 | `GET /metrics`     | métricas Prometheus (`http_requests_total`, latência; texto puro, fora do smorest) |
 
-Query params e respostas são validados por schemas marshmallow (`schemas.py` de cada módulo) e aparecem no spec.
+Query params e respostas são validados por schemas marshmallow (`schemas.py` de cada módulo) e aparecem no spec — com `metadata={"example": ...}` para guiar integradores no Swagger UI.
 
 ## Run and debug
 
@@ -160,7 +163,7 @@ docker compose up --build
 - **Rate limiting:** default `200/hour` (`RATELIMIT_DEFAULT`), Redis via `RATELIMIT_STORAGE_URI` em produção com N workers; `@limiter.limit(...)` por rota (ex. login).
 - **Lint local (opcional):** `uvx pre-commit install` (o CI já roda ruff + pytest + audit).
 - **Port:** update `forwardPorts`/`portsAttributes` in `.devcontainer/devcontainer.json` and `--port` in `.vscode/launch.json`.
-- **Security audit:** `uv run --group dev pip-audit --desc`.
+- **Security audit:** `uv run --group dev pip-audit --desc` (deps) + `uv run --group dev bandit -r app` (SAST local; CodeQL roda no CI).
 
 Notes: `tzdata` is required on Windows for `zoneinfo`; `FLASK_DEBUG=1` (launch.json) is for local use only.
 
