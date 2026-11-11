@@ -15,6 +15,7 @@ class Config:
     """Base comum."""
 
     TIMEZONE = os.getenv("APP_TIMEZONE", "America/Sao_Paulo")
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///base_flask.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*")

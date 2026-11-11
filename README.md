@@ -102,7 +102,8 @@ Camadas `routes > service > repository` sem sobreposição; `schemas.py` (marshm
 | `GET /v1/live`     | liveness: `{"status": "ok"}` (sempre 200; para probes/healthcheck)               |
 | `POST /v1/auth/register` | `{"username": "..."}` → 201 (409 se username em uso)                       |
 | `POST /v1/auth/login` | `{"access_token": "...", "refresh_token": "..."}` (401 se inválido; 30 req/min) |
-| `POST /v1/auth/refresh` | `{"access_token": "..."}` (requer refresh token)                           |
+| `POST /v1/auth/refresh` | **rotação**: devolve par novo e revoga o refresh antigo (401 se reutilizado) |
+| `POST /v1/auth/logout` | revoga o access token → 200 `{"message": "logged out"}` (requer JWT) |
 | `GET /v1/auth/me`  | usuário do token (requer JWT; documentado com `security: bearerAuth`)             |
 | `GET /v1/visits/`  | `[{id, name, created_at}]` paginado (`?page=&page_size=&name=&order=`, header `X-Pagination`; cache Redis/memória com header `X-Cache`) |
 | `POST /v1/visits/` | `{"name": "..."}` → 201 (**requer JWT**; nome vazio vira `"anonymous"`)          |
@@ -154,6 +155,12 @@ uv run flask --app app db upgrade
 uv run flask --app app seed   # dados de exemplo (idempotente)
 ```
 
+## Observabilidade
+
+- `request-id`: gerado por requisição (`X-Request-Id`), ecoado na resposta e incluído em todos os logs e no access log do gunicorn.
+- Logs da aplicação em JSON (`app/logging_conf.py`, nível via `LOG_LEVEL`): `{"ts", "level", "logger", "request_id", ...}`.
+- Métricas Prometheus em `GET /metrics` (texto puro, fora do smorest de propósito).
+
 ## Docker (exemplo)
 
 Imagem de produção (`python:3.15-slim-trixie` + deps do `uv.lock`, usuário não-root `appuser`, gunicorn em `0.0.0.0:40000`):
@@ -178,11 +185,12 @@ docker compose up --build
 ## Customize
 
 - **Dependencies:** edit `pyproject.toml`, run `uv lock && uv sync --group dev`, and commit both files.
-- **Environments:** `APP_ENV=development|testing|production` (`app/config.py`); copy `.env.example` to `.env` locally (never commit `.env`). Defina um `JWT_SECRET_KEY` forte em produção.
+- **Environments:** `APP_ENV=development|testing|production` (`app/config.py`); copy `.env.example` to `.env` locally (never commit `.env`). Defina um `JWT_SECRET_KEY` forte e `LOG_LEVEL` em produção.
 - **Database:** `DATABASE_URL` (SQLite local por padrão, zero-setup; compose usa **Postgres** em volume persistente). Evolua só via `flask db migrate`/`upgrade` (nunca `create_all()` no runtime; `conftest.py` é a exceção, para o SQLite em memória dos testes). As migrations `create_table` são portáteis entre SQLite e Postgres.
 - **Cache:** `CACHE_TYPE` (`SimpleCache` local, `RedisCache` em produção via `CACHE_REDIS_URL` — o compose já sobe o Redis com volume próprio).
 - **Rate limiting:** default `200/hour` (`RATELIMIT_DEFAULT`), Redis via `RATELIMIT_STORAGE_URI` em produção com N workers; `@limiter.limit(...)` por rota (ex. login).
-- **Lint local (opcional):** `uvx pre-commit install` (o CI já roda ruff + pytest + audit).
+- **Lint local (opcional):** `uvx pre-commit install` (ruff + hooks básicos; o CI também roda pre-commit, além de ruff + pytest + audit).
+- **Templates:** `CONTRIBUTING.md`, issue/PR templates em `.github/`, decisões em `docs/adr/`.
 - **Port:** update `forwardPorts`/`portsAttributes` in `.devcontainer/devcontainer.json` and `--port` in `.vscode/launch.json`.
 - **Security audit:** `uv run --group dev pip-audit --desc` (deps) + `uv run --group dev bandit -r app` (SAST local; CodeQL roda no CI).
 

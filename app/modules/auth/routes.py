@@ -4,6 +4,7 @@ from flask import abort
 from flask_jwt_extended import (
     create_access_token,
     create_refresh_token,
+    get_jwt,
     get_jwt_identity,
     jwt_required,
 )
@@ -12,8 +13,8 @@ from flask_smorest import Blueprint
 from app.extensions import limiter
 
 from .repository import UserRepository
-from .schemas import AccessTokenSchema, LoginSchema, RegisterSchema, TokenPairSchema, UserSchema
-from .service import authenticate, register
+from .schemas import LoginSchema, MessageSchema, RegisterSchema, TokenPairSchema, UserSchema
+from .service import authenticate, register, revoke_token
 
 bp = Blueprint("auth", __name__, description="Autenticação JWT")
 
@@ -48,12 +49,29 @@ def login(args):
 
 
 @bp.post("/refresh")
-@bp.response(200, AccessTokenSchema)
+@bp.response(200, TokenPairSchema)
 @jwt_required(refresh=True)
 @bp.doc(security=_bearer)
 def refresh():
-    """Troca um refresh token por um access token novo."""
-    return {"access_token": create_access_token(identity=get_jwt_identity())}
+    """Troca o par de tokens (rotação: o refresh antigo é revogado)."""
+    claims = get_jwt()
+    revoke_token(claims["jti"], claims["exp"] - claims["iat"])
+    identity = get_jwt_identity()
+    return {
+        "access_token": create_access_token(identity=identity),
+        "refresh_token": create_refresh_token(identity=identity),
+    }
+
+
+@bp.post("/logout")
+@bp.response(200, MessageSchema)
+@jwt_required()
+@bp.doc(security=_bearer)
+def logout():
+    """Encerra a sessão (revoga o access token)."""
+    claims = get_jwt()
+    revoke_token(claims["jti"], claims["exp"] - claims["iat"])
+    return {"message": "logged out"}
 
 
 @bp.get("/me")

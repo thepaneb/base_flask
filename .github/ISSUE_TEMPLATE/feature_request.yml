@@ -1,0 +1,16 @@
+name: Feature request
+description: Sugira uma evolução para o template
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: Que problema resolve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposta
+    attributes:
+      label: Proposta (camadas, compat, breaking changes?)
+    validations:
+      required: true

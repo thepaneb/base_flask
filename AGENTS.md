@@ -10,8 +10,9 @@
 - `app/__init__.py`: só `create_app()` (factory) + `db/migrate/jwt/limiter.init_app` + CORS + CLI + registro de blueprints e erros. Sem `create_all()` no runtime. `app = create_app()` existe para o Flask CLI. Prefixo de versão `/v1` aplicado centralmente (`API_PREFIX`) em todos os blueprints smorest.
 - `app/config.py`: `Development/Testing/ProductionConfig` via `get_config()` (`$APP_ENV`, default development). `.env.example` documenta as vars (nunca commite `.env`; `JWT_SECRET_KEY` forte em produção).
 - `app/errors.py`: handlers JSON 401/404/405/429/500 + loaders JWT no mesmo formato. `app/extensions.py`: `db`, `migrate`, `jwt`, `limiter`.
-- `app/observability.py`: request-id (`X-Request-Id`), log de acesso em JSON e métricas Prometheus + `GET /metrics` (texto puro, fora do smorest de propósito).
-- `app/modules/auth/`: JWT register/login/refresh/me (`User` + `UserRepository` + `TokenPairSchema`/`UserSchema`); `POST /visits` e `DELETE` exigem JWT; login com rate limit anti-brute-force.
+- `app/logging_conf.py`: `JsonFormatter` + `configure_logging` (nível em `LOG_LEVEL`); log de acesso via `app.logger`.
+- `app/observability.py`: request-id (`X-Request-Id`), métricas Prometheus + `GET /metrics` (texto puro, fora do smorest de propósito).
+- `app/modules/auth/`: JWT register/login/refresh(rotaciona)/logout/me + blocklist (`TokenBlocklist`); `POST /visits` e `DELETE` exigem JWT; login com rate limit anti-brute-force.
 - `app/modules/admin/`: `GET /` (stats: contagens, uptime, versão; requer JWT; lê via repositories).
 - `app/modules/visits/`: CRUD + `@paginate` com header `X-Pagination` + filtro `?name=`/`?order=` + cache (`X-Cache: HIT/MISS`, invalidação por versão); `GET/POST /visits/`, `GET/DELETE /visits/<id>`, `GET /visits/export` (CSV).
 - `app/modules/<nome>/`: `routes.py` (bp smorest + views finas, `@paginate` quando listar), `service.py` (regra pura, sem `flask`), `schemas.py` (marshmallow: query + resposta), `models.py` + `repository.py` (**só** se o módulo tem dado — importar models no `__init__.py` para o migrate enxergar), `__init__.py` (reexporta `bp`).
@@ -20,7 +21,7 @@
 - `app/modules/hello_world/`: exemplo completo (`GET /`, `/hello-world`, `/hello_world`, com `?name=&lang=`, `HelloQuerySchema`/`HelloSchema`).
 - Docs OpenAPI 3.1 via flask-smorest (config em `app/config.py`): `GET /openapi.json`, `/swagger-ui`, `/redoc`. Sem módulo `docs` — o spec é gerado dos blueprints.
 - `tests/`: `conftest.py` (fixture `client` + `auth_headers`, `TestingConfig` + SQLite em memória), `test_routes.py`, `test_services.py` (regras puras + dublês de repository), `test_visits.py`, `test_auth.py`, `test_cli.py`.
-- CI `.github/workflows/ci.yml`: ruff + pytest `--cov-fail-under=90` + pip-audit + `docker build`. Dependabot (uv/docker/actions) em `.github/dependabot.yml`.
+- CI `.github/workflows/ci.yml`: ruff + bandit + pytest (`--cov-fail-under=90`, upgrade+migrate do zero, SBOM CycloneDX) + `docker build` + smoke do compose (`/v1/*`, auth, cache). Dependabot e CodeQL em workflows próprios. Guias em `CONTRIBUTING.md`, `docs/adr/`.
 - Pre-commit opcional local (`uvx pre-commit install`): ruff + hooks básicos (o CI é a fonte da verdade).
 - `pyproject.toml` + `uv.lock`: única fonte de dependências. Não recrie `requirements.txt`.
 - `dev/dependencies.sh`: apenas `uv sync --frozen`.

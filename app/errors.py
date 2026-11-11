@@ -37,3 +37,13 @@ def register_error_handlers(app):
     @jwt.expired_token_loader
     def _jwt_expired(_header, _payload):
         return {"error": "token expirado"}, 401
+
+    @jwt.token_in_blocklist_loader
+    def _jwt_blocklisted(_header, payload):
+        from app.modules.auth.service import is_token_revoked
+
+        return is_token_revoked(payload["jti"])
+
+    @jwt.revoked_token_loader
+    def _jwt_revoked(_header, _payload):
+        return {"error": "token revogado: autentique-se novamente"}, 401

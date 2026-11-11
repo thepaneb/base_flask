@@ -40,7 +40,7 @@ def test_me_with_token(auth_headers, client):
     assert resp.get_json()["username"] == "ada"
 
 
-def test_refresh_issues_new_access_token(client):
+def test_refresh_rotates_pair_and_rejects_old(client):
     client.post("/v1/auth/register", json={"username": "ada", "password": "s3cret"})
     tokens = client.post(
         "/v1/auth/login", json={"username": "ada", "password": "s3cret"}
@@ -50,7 +50,27 @@ def test_refresh_issues_new_access_token(client):
         headers={"Authorization": f"Bearer {tokens['refresh_token']}"},
     )
     assert resp.status_code == 200
-    assert resp.get_json()["access_token"]
+    rotated = resp.get_json()
+    assert rotated["access_token"] != tokens["access_token"]
+    assert rotated["refresh_token"] != tokens["refresh_token"]
+
+    reuse = client.post(
+        "/v1/auth/refresh",
+        headers={"Authorization": f"Bearer {tokens['refresh_token']}"},
+    )
+    assert reuse.status_code == 401
+
+
+def test_logout_revokes_access_token(client, auth_headers):
+    resp = client.post("/v1/auth/logout", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.get_json() == {"message": "logged out"}
+
+    assert client.get("/v1/auth/me", headers=auth_headers).status_code == 401
+
+
+def test_logout_requires_token(client):
+    assert client.post("/v1/auth/logout").status_code == 401
 
 
 def test_visits_write_requires_token(client):

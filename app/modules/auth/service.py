@@ -2,7 +2,7 @@
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from .repository import UserRepository
+from .repository import TokenBlocklist, UserRepository
 
 _repository = UserRepository()
 
@@ -25,3 +25,13 @@ def authenticate(username, password, repository=None):
     if user is None or not check_password_hash(user.password_hash, password or ""):
         return None
     return user
+
+
+def revoke_token(jti, ttl_seconds):
+    """Revoga um token (logout ou rotação); expira junto com o token."""
+    TokenBlocklist.add(jti, ttl_seconds)
+
+
+def is_token_revoked(jti):
+    """Verifica se um token foi revogado."""
+    return TokenBlocklist.contains(jti)

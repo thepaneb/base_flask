@@ -14,6 +14,7 @@ from .cli import seed_command
 from .config import get_config
 from .errors import register_error_handlers
 from .extensions import cache, db, jwt, limiter, migrate
+from .logging_conf import configure_logging
 from .observability import bp as metrics_bp
 from .observability import init_observability
 
@@ -22,6 +23,7 @@ def create_app(config_object=None):
     """Cria e configura o app (permite config por ambiente e testes isolados)."""
     app = Flask(__name__)
     app.config.from_object(config_object or get_config())
+    configure_logging(app)
     origins = app.config["CORS_ORIGINS"]
     CORS(app, origins=origins.split(",") if origins != "*" else "*")
     db.init_app(app)

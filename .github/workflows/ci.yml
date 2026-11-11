@@ -19,6 +19,26 @@ jobs:
       - run: uv run bandit -r app -q
       - run: uv run pytest --cov=app --cov-report=term --cov-fail-under=90 -v
       - run: uv run pip-audit --desc
+      - name: banco e migrations a partir do zero
+        run: |
+          rm -f /tmp/check.db
+          DATABASE_URL=sqlite:////tmp/check.db uv run flask --app app db upgrade
+          DATABASE_URL=sqlite:////tmp/check.db uv run flask --app app db check
+      - name: SBOM (CycloneDX)
+        run: uv run pip-audit --format=cyclonedx-json --output sbom.json --desc
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
+
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.15"
+      - uses: pre-commit/action@v3.0.1
 
   docker:
     runs-on: ubuntu-latest

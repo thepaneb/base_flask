@@ -25,9 +25,16 @@ class TokenPairSchema(ma.Schema):
 
 
 class AccessTokenSchema(ma.Schema):
-    """Novo access token do refresh."""
+    """Novo par de tokens do refresh (rotação: o antigo é revogado)."""
 
     access_token = ma.fields.Str(required=True)
+    refresh_token = ma.fields.Str(required=True)
+
+
+class MessageSchema(ma.Schema):
+    """Mensagem simples (ex. logout)."""
+
+    message = ma.fields.Str(required=True)
 
 
 class UserSchema(ma.Schema):

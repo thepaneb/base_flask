@@ -1,0 +1,23 @@
+name: Bug report
+description: Relate um comportamento inesperado
+labels: [bug]
+body:
+  - type: textarea
+    id: atual
+    attributes:
+      label: Comportamento atual
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: Comportamento esperado
+    validations:
+      required: true
+  - type: textarea
+    id: reproduzir
+    attributes:
+      label: Como reproduzir
+      placeholder: comandos, payload, `APP_ENV`, logs
+    validations:
+      required: true

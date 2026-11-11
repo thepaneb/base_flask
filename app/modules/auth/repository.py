@@ -1,8 +1,28 @@
 """Acesso aos dados do módulo auth."""
 
-from app.extensions import db
+from app.extensions import cache, db
 
 from .models import User
+
+BLOCKLIST_PREFIX = "jwt:blocked:"
+
+
+class TokenBlocklist:
+    """JTIs revogados (logout + rotação de refresh). TTL = vida restante do token."""
+
+    @staticmethod
+    def _key(jti):
+        return f"{BLOCKLIST_PREFIX}{jti}"
+
+    @classmethod
+    def add(cls, jti, ttl_seconds):
+        """Revoga um token até expirar."""
+        cache.set(cls._key(jti), True, timeout=int(ttl_seconds))
+
+    @classmethod
+    def contains(cls, jti):
+        """Verifica se um token foi revogado."""
+        return bool(cache.get(cls._key(jti)))
 
 
 class UserRepository:

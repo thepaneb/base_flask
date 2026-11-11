@@ -1,15 +1,14 @@
 """Observabilidade: request-id, log de acesso em JSON e métricas Prometheus.
 
 Um único `init_observability(app)` registra os hooks; o blueprint expõe
-o `/metrics` em texto puro (fora do smorest de propósito).
+o `/metrics` em texto puro (fora do smorest de propósito). O log de
+acesso usa `app.logger`, já formatado em JSON por `logging_conf`.
 """
 
-import json
-import logging
 import time
 import uuid
 
-from flask import Blueprint, Response, g, request
+from flask import Blueprint, Response, current_app, g, request
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 bp = Blueprint("metrics", __name__)
@@ -24,8 +23,6 @@ DURATION = Histogram(
     "Duração das requisições HTTP.",
     ["method", "endpoint"],
 )
-
-_log = logging.getLogger("base_flask.access")
 
 
 def init_observability(app):
@@ -45,17 +42,14 @@ def init_observability(app):
         endpoint = request.endpoint or "unknown"
         REQUESTS.labels(request.method, endpoint, response.status_code).inc()
         DURATION.labels(request.method, endpoint).observe(elapsed_ms / 1000)
-        _log.info(
-            json.dumps(
-                {
-                    "request_id": g.get("request_id"),
-                    "method": request.method,
-                    "path": request.path,
-                    "endpoint": endpoint,
-                    "status": response.status_code,
-                    "duration_ms": round(elapsed_ms, 2),
-                }
-            )
+        current_app.logger.info(
+            {
+                "method": request.method,
+                "path": request.path,
+                "endpoint": endpoint,
+                "status": response.status_code,
+                "duration_ms": round(elapsed_ms, 2),
+            }
         )
         return response
 
