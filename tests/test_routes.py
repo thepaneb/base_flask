@@ -69,3 +69,9 @@ def test_unknown_route_returns_json_404(client):
     resp = client.get("/nao-existe")
     assert resp.status_code == 404
     assert resp.get_json() == {"error": "not found"}
+
+
+def test_method_not_allowed_returns_json_405(client):
+    resp = client.post("/status")
+    assert resp.status_code == 405
+    assert resp.get_json() == {"error": "method not allowed"}

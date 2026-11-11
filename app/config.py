@@ -16,6 +16,7 @@ class Config:
     TIMEZONE = os.getenv("APP_TIMEZONE", "America/Sao_Paulo")
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///base_flask.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*")
 
     # Documentação OpenAPI (flask-smorest)
     API_TITLE = "base-flask"

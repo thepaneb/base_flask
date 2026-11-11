@@ -5,6 +5,7 @@ FROM python:3.15-slim-trixie
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     APP_ENV=production \
+    DATABASE_URL=sqlite:////data/base_flask.db \
     PATH="/srv/app/.venv/bin:$PATH"
 
 WORKDIR /srv/app
@@ -17,11 +18,18 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev
 
 COPY app/ ./app/
+COPY migrations/ ./migrations/
+COPY entrypoint.sh ./entrypoint.sh
+
+RUN useradd --create-home --uid 10000 --shell /bin/false appuser \
+    && mkdir -p /data && chown -R appuser:appuser /data /srv/app
+USER appuser
 
 EXPOSE 40000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
   CMD python -c "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:40000/status').status == 200 else 1)"
 
-# "app:create_app()" chama a factory e devolve o WSGI app
+# O entrypoint aplica `flask db upgrade` e chama o CMD (gunicorn).
+ENTRYPOINT ["/srv/app/entrypoint.sh"]
 CMD ["gunicorn", "--bind", "0.0.0.0:40000", "--workers", "2", "app:create_app()"]

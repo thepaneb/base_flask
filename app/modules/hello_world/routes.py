@@ -7,7 +7,7 @@ valida/serializa a resposta e gera a documentação OpenAPI.
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from flask import current_app, jsonify
+from flask import current_app
 from flask_smorest import Blueprint
 
 from .schemas import HelloQuerySchema, HelloSchema
@@ -23,6 +23,8 @@ bp = Blueprint("hello_world", __name__, description="Exemplo de saudação")
 @bp.response(200, HelloSchema)
 def hello(args):
     """Saudação. Query params opcionais: `name`, `lang` (en/pt/es)."""
-    message = greet(name=args.get("name"), lang=args.get("lang"))
     tz = ZoneInfo(current_app.config["TIMEZONE"])
-    return jsonify({"message": message, "timestamp": datetime.now(tz).isoformat()})
+    return {
+        "message": greet(name=args.get("name"), lang=args.get("lang")),
+        "timestamp": datetime.now(tz).isoformat(),
+    }

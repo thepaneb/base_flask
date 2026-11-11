@@ -16,7 +16,7 @@ jobs:
       - run: uv sync --locked --group dev
       - run: uv run ruff check app tests
       - run: uv run ruff format --check app tests
-      - run: uv run pytest -v
+      - run: uv run pytest --cov=app --cov-report=term --cov-fail-under=90 -v
       - run: uv run pip-audit --desc
 
   docker:

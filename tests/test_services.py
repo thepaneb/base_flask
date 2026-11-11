@@ -18,6 +18,12 @@ def test_greet_blank_name_and_unknown_lang_fall_back():
     assert greet(name="   ", lang="xx") == "Hello, world!"
 
 
+def test_supported_langs():
+    from app.modules.hello_world.repository import GreetingRepository
+
+    assert GreetingRepository().supported_langs == ["en", "es", "pt"]
+
+
 class FakeVisitRepository:
     """Dublê do repository (mesma interface, sem banco)."""
 
@@ -29,12 +35,34 @@ class FakeVisitRepository:
         self.items.append(visit)
         return visit
 
-    def list_all(self):
-        return list(self.items)
+    def get(self, visit_id):
+        return next((v for v in self.items if v.id == visit_id), None)
+
+    def delete(self, visit):
+        self.items.remove(visit)
+
+    def list(self, limit, offset):
+        return self.items[offset : offset + limit]
+
+    def count(self):
+        return len(self.items)
 
 
 def test_record_visit_validates_and_delegates():
     repo = FakeVisitRepository()
     assert record_visit("  Ada  ", repository=repo).name == "Ada"
     assert record_visit(None, repository=repo).name == "anonymous"
-    assert [v.name for v in list_visits(repository=repo)] == ["Ada", "anonymous"]
+    items, total = list_visits(repository=repo)
+    assert [v.name for v in items] == ["Ada", "anonymous"]
+    assert total == 2
+
+
+def test_get_and_delete_visit():
+    from app.modules.visits.service import delete_visit, get_visit
+
+    repo = FakeVisitRepository()
+    visit = record_visit("Ada", repository=repo)
+    assert get_visit(visit.id, repository=repo).name == "Ada"
+    assert get_visit(999, repository=repo) is None
+    assert delete_visit(visit.id, repository=repo) is True
+    assert delete_visit(visit.id, repository=repo) is False

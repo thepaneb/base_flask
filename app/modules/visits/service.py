@@ -12,6 +12,23 @@ def record_visit(name, repository=None):
     return repo.add(clean)
 
 
-def list_visits(repository=None):
-    """Retorna as visitas registradas."""
-    return (repository or _repository).list_all()
+def list_visits(page=1, page_size=10, repository=None):
+    """Retorna (itens, total) da página pedida."""
+    repo = repository or _repository
+    offset = (page - 1) * page_size
+    return repo.list(limit=page_size, offset=offset), repo.count()
+
+
+def get_visit(visit_id, repository=None):
+    """Retorna uma visita pelo id (None se não existir)."""
+    return (repository or _repository).get(visit_id)
+
+
+def delete_visit(visit_id, repository=None):
+    """Remove uma visita. Retorna False se não existir."""
+    repo = repository or _repository
+    visit = repo.get(visit_id)
+    if visit is None:
+        return False
+    repo.delete(visit)
+    return True
