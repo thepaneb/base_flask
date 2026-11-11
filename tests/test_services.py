@@ -41,11 +41,13 @@ class FakeVisitRepository:
     def delete(self, visit):
         self.items.remove(visit)
 
-    def list(self, limit, offset):
-        return self.items[offset : offset + limit]
+    def list(self, limit, offset, name=None, order="desc"):
+        items = [v for v in self.items if not name or name.lower() in v.name.lower()]
+        items = sorted(items, key=lambda v: v.id, reverse=(order != "asc"))
+        return items[offset : offset + limit]
 
-    def count(self):
-        return len(self.items)
+    def count(self, name=None):
+        return len([v for v in self.items if not name or name.lower() in v.name.lower()])
 
 
 def test_record_visit_validates_and_delegates():
@@ -53,7 +55,7 @@ def test_record_visit_validates_and_delegates():
     assert record_visit("  Ada  ", repository=repo).name == "Ada"
     assert record_visit(None, repository=repo).name == "anonymous"
     items, total = list_visits(repository=repo)
-    assert [v.name for v in items] == ["Ada", "anonymous"]
+    assert [v.name for v in items] == ["anonymous", "Ada"]  # id desc
     assert total == 2
 
 

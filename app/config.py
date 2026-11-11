@@ -18,6 +18,16 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*")
 
+    # Prefixo de versão aplicado a todos os blueprints no create_app()
+    API_PREFIX = os.getenv("API_PREFIX", "/v1")
+
+    # JWT (troque o default em produção!)
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-only-change-me")
+
+    # Rate limiting (Redis em produção com N workers: RATELIMIT_STORAGE_URI=redis://...)
+    RATELIMIT_STORAGE_URI = os.getenv("RATELIMIT_STORAGE_URI", "memory://")
+    RATELIMIT_DEFAULT = os.getenv("RATELIMIT_DEFAULT", "200 per hour")
+
     # Documentação OpenAPI (flask-smorest)
     API_TITLE = "base-flask"
     API_VERSION = "0.1.0"
@@ -28,6 +38,13 @@ class Config:
     OPENAPI_SWAGGER_UI_URL = "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/"
     OPENAPI_REDOC_PATH = "/redoc"
     OPENAPI_REDOC_URL = "https://cdn.jsdelivr.net/npm/redoc@2/bundles/redoc.standalone.js"
+    API_SPEC_OPTIONS = {
+        "components": {
+            "securitySchemes": {
+                "bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
+            }
+        }
+    }
 
 
 class DevelopmentConfig(Config):

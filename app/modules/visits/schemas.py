@@ -9,6 +9,15 @@ class VisitCreateSchema(ma.Schema):
     name = ma.fields.Str(required=False, load_default=None)
 
 
+class VisitListQuerySchema(ma.Schema):
+    """Filtros do GET /visits (combinam com a paginação do smorest)."""
+
+    name = ma.fields.Str(required=False, load_default=None)
+    order = ma.fields.Str(
+        required=False, load_default="desc", validate=ma.validate.OneOf(["asc", "desc"])
+    )
+
+
 class VisitSchema(ma.Schema):
     """Uma visita registrada."""
 

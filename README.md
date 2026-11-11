@@ -49,39 +49,48 @@ code base_flask
 │   └── launch.json                   # "Flask Debugger" (debugpy)
 ├── app/
 │   ├── __init__.py                   # create_app() factory, registers blueprints + errors
-│   ├── config.py                     # Development/Testing/Production via APP_ENV (+ TZ, DB, OpenAPI)
-│   ├── errors.py                     # JSON 404/405/500 handlers
-│   ├── extensions.py                 # db = SQLAlchemy() (init na factory)
+│   ├── config.py                     # Development/Testing/Production via APP_ENV (+ TZ, DB, JWT, CORS, rate limit, OpenAPI)
+│   ├── errors.py                     # JSON 401/404/405/429/500 handlers (+ JWT loaders)
+│   ├── extensions.py                 # db, migrate, jwt, limiter (init na factory)
+│   ├── cli.py                        # `flask seed` (dados de exemplo, idempotente)
+│   ├── observability.py              # request-id, log JSON, métricas Prometheus + /metrics
 │   └── modules/
 │       ├── hello_world/              # routes.py + service.py + repository.py + schemas.py
 │       ├── status/                   # routes.py + service.py + schemas.py (GET /status, checa o DB)
-│       └── visits/                   # exemplo com banco: routes + service + repository + models + schemas
+│       ├── visits/                   # CRUD com banco + paginação (GET/POST / + GET/DELETE /<id>)
+│       └── auth/                     # JWT: register/login/refresh/me + User model
 ├── tests/                            # conftest + test_routes/services/visits/cli (coverage ≥90%)
 ├── migrations/                       # Alembic (Flask-Migrate): `flask db migrate/upgrade`
 ├── dev/dependencies.sh               # uv sync + flask db upgrade (container postCreate)
+├── .pre-commit-config.yaml           # ruff + hooks básicos (opcional local: `uvx pre-commit install`)
 ├── .github/workflows/ci.yml          # ruff + pytest --cov + pip-audit + docker build
 ├── .github/dependabot.yml            # uv + docker + github-actions (semanal)
 ├── Dockerfile / compose.yaml         # prod non-root (appuser), entrypoint aplica migrations, volume sqlite
-├── .env.example                      # APP_ENV, APP_TIMEZONE, DATABASE_URL, CORS_ORIGINS
-├── pyproject.toml / uv.lock          # dependencies (Flask, smorest, SQLAlchemy, gunicorn, tzdata)
+├── .env.example                      # APP_ENV, APP_TIMEZONE, DATABASE_URL, CORS_ORIGINS, JWT_SECRET_KEY, API_PREFIX
+├── pyproject.toml / uv.lock          # Flask, smorest, SQLAlchemy, JWT, limiter, prometheus, gunicorn, tzdata
 ├── .python-version                   # 3.15.2
 └── AGENTS.md                         # guide for coding agents
 ```
 
-## Endpoints
+## Endpoints (todas as rotas sob o prefixo de versão `/v1`)
 
 | Route              | Response                                                                          |
 | ------------------ | --------------------------------------------------------------------------------- |
-| `GET /`            | `{"message": "Hello, world!", "timestamp": ...}`                                  |
-| `GET /hello-world?name=Ana&lang=pt` | `{"message": "Olá, Ana!", ...}` (langs: en/pt/es, fallback en)        |
-| `GET /status`      | `{"status": "ok", "database": "ok", "timestamp": ...}` (200; 503 se degradado) |
-| `GET /openapi.json` | OpenAPI 3.1 spec (flask-smorest)                                                 |
-| `GET /swagger-ui`  | Swagger UI interativa (CDN)                                                       |
+| `GET /v1/`         | `{"message": "Hello, world!", "timestamp": ...}`                                  |
+| `GET /v1/hello-world?name=Ana&lang=pt` | `{"message": "Olá, Ana!", ...}` (langs: en/pt/es, fallback en)      |
+| `GET /v1/status`   | `{"status": "ok", "database": "ok", "timestamp": ...}` (200; 503 se degradado) |
+| `POST /v1/auth/register` | `{"username": "..."}` → 201 (409 se username em uso)                       |
+| `POST /v1/auth/login` | `{"access_token": "...", "refresh_token": "..."}` (401 se inválido; 30 req/min) |
+| `POST /v1/auth/refresh` | `{"access_token": "..."}` (requer refresh token)                           |
+| `GET /v1/auth/me`  | usuário do token (requer JWT; documentado com `security: bearerAuth`)             |
+| `GET /v1/visits/`  | `[{id, name, created_at}]` paginado (`?page=&page_size=&name=&order=`, header `X-Pagination`) |
+| `POST /v1/visits/` | `{"name": "..."}` → 201 (**requer JWT**; nome vazio vira `"anonymous"`)          |
+| `GET /v1/visits/<id>` | uma visita (404 em JSON se não existir)                                       |
+| `DELETE /v1/visits/<id>` | remove, 204 (**requer JWT**; 404 em JSON se não existir)                   |
+| `GET /openapi.json` | OpenAPI 3.1 spec (flask-smorest, com `securitySchemes` bearer)                   |
+| `GET /swagger-ui`  | Swagger UI interativa (CDN; botão Authorize usa o JWT)                            |
 | `GET /redoc`       | ReDoc (CDN)                                                                       |
-| `GET /visits/`     | `[{id, name, created_at}]` paginado (`?page=&page_size=`, header `X-Pagination`) |
-| `POST /visits/`    | `{"name": "..."}` → 201 (nome vazio vira `"anonymous"`)                          |
-| `GET /visits/<id>` | uma visita (404 em JSON se não existir)                                          |
-| `DELETE /visits/<id>` | remove (204; 404 em JSON se não existir)                                      |
+| `GET /metrics`     | métricas Prometheus (`http_requests_total`, latência; texto puro, fora do smorest) |
 
 Query params e respostas são validados por schemas marshmallow (`schemas.py` de cada módulo) e aparecem no spec.
 
@@ -101,7 +110,7 @@ The launch profile uses `--no-debugger --no-reload` on purpose: Flask's own debu
 Quick check without starting a server:
 
 ```bash
-uv run python -c "import app; c=app.app.test_client(); print(c.get('/').get_json()); print(c.get('/status').status_code)"
+uv run python -c "import app; c=app.app.test_client(); print(c.get('/v1/').get_json()); print(c.get('/v1/status').status_code)"
 ```
 
 Run the test suite (`tests/`, pytest, coverage gate ≥90%):
@@ -133,21 +142,23 @@ docker run -p 40000:40000 base-flask
 docker compose up --build
 ```
 
-`compose.yaml` define `APP_ENV=production`, `APP_TIMEZONE`, `DATABASE_URL=sqlite:////data/...` com volume persistente, e expõe a porta `40000`. O `entrypoint.sh` aplica `flask db upgrade` antes de subir o gunicorn. Para dev com reload, descomente o bloco `volumes`/`command` no compose. Validados: build, `compose up` (non-root), migrations no entrypoint, `GET /status` (database ok), CRUD `/visits` + paginação e `/openapi.json`.
+`compose.yaml` define `APP_ENV=production`, `APP_TIMEZONE`, `DATABASE_URL=sqlite:////data/...` com volume persistente, e expõe a porta `40000`. O `entrypoint.sh` aplica `flask db upgrade` antes de subir o gunicorn. Para dev com reload, descomente o bloco `volumes`/`command` no compose. Validados: build, `compose up` (non-root), migrations no entrypoint, `GET /v1/status`, CRUD `/v1/visits` + paginação, auth JWT, `/metrics` e `/openapi.json`.
 
 ## Add a new module (`routes > service > repository`)
 
 1. Create `app/modules/<name>/` with `routes.py` (thin: reads request/config, calls one service, returns plain data — `@response` serializes), `service.py` (pure business rule, no `flask`), `schemas.py` (marshmallow query/response), `models.py` (SQLAlchemy, if it owns tables) and `repository.py` **only if the module owns data** (re-export `bp` in `__init__.py`; import models there so migrations see them). Then `flask db migrate -m "..."` + `upgrade`.
-2. Use the smorest `Blueprint`: `@bp.arguments(QuerySchema, location="query")` + `@bp.response(200, ResponseSchema)` — validation and OpenAPI come for free.
-3. Register it in `create_app()` via `api.register_blueprint(<name>_bp)` (plain `app.register_blueprint` skips the docs).
+2. Use the smorest `Blueprint` (sem `url_prefix`: o versionamento `/v1` é aplicado centralmente no `create_app`): `@bp.arguments(QuerySchema, location="query")` + `@bp.response(200, ResponseSchema)` — validation and OpenAPI come for free. Para rotas protegidas: `@jwt_required()` + `@bp.doc(security=[{"bearerAuth": []}])`; para listas: `@bp.paginate()`.
+3. Register it in `create_app()` via `api.register_blueprint(<name>_bp, url_prefix=f"{prefix}/<name>")` (plain `app.register_blueprint` skips the docs).
 4. Cover it in `tests/` (`test_routes.py` for HTTP incl. spec paths, `test_services.py` for pure rules; use the `client` fixture from `conftest.py`).
 5. Don't import `app` inside modules (use `app.extensions.db`, `current_app.config`). Timestamps with `ZoneInfo(current_app.config["TIMEZONE"])`; external HTTP (if any) only over `https://` with `timeout=(5, 5)` and `try/except` mapped to 502/503 in the route.
 
 ## Customize
 
 - **Dependencies:** edit `pyproject.toml`, run `uv lock && uv sync --group dev`, and commit both files.
-- **Environments:** `APP_ENV=development|testing|production` (`app/config.py`); copy `.env.example` to `.env` locally (never commit `.env`).
+- **Environments:** `APP_ENV=development|testing|production` (`app/config.py`); copy `.env.example` to `.env` locally (never commit `.env`). Defina um `JWT_SECRET_KEY` forte em produção.
 - **Database:** `DATABASE_URL` (default SQLite local; compose usa volume em `/data`). Evolua só via `flask db migrate`/`upgrade` (nunca `create_all()` no runtime; `conftest.py` é a exceção, para o SQLite em memória dos testes).
+- **Rate limiting:** default `200/hour` (`RATELIMIT_DEFAULT`), Redis via `RATELIMIT_STORAGE_URI` em produção com N workers; `@limiter.limit(...)` por rota (ex. login).
+- **Lint local (opcional):** `uvx pre-commit install` (o CI já roda ruff + pytest + audit).
 - **Port:** update `forwardPorts`/`portsAttributes` in `.devcontainer/devcontainer.json` and `--port` in `.vscode/launch.json`.
 - **Security audit:** `uv run --group dev pip-audit --desc`.
 

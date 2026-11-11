@@ -24,10 +24,17 @@ class VisitRepository:
         db.session.delete(visit)
         db.session.commit()
 
-    def list(self, limit, offset):
-        """Retorna uma página de visitas, mais recentes primeiro."""
-        return Visit.query.order_by(Visit.id.desc()).limit(limit).offset(offset).all()
+    def list(self, limit, offset, name=None, order="desc"):
+        """Retorna uma página de visitas (filtro opcional por nome)."""
+        query = Visit.query
+        if name and name.strip():
+            query = query.filter(Visit.name.ilike(f"%{name.strip()}%"))
+        sorting = Visit.id.asc() if order == "asc" else Visit.id.desc()
+        return query.order_by(sorting).limit(limit).offset(offset).all()
 
-    def count(self):
-        """Total de visitas."""
-        return Visit.query.count()
+    def count(self, name=None):
+        """Total de visitas (respeitando o filtro, se houver)."""
+        query = Visit.query
+        if name and name.strip():
+            query = query.filter(Visit.name.ilike(f"%{name.strip()}%"))
+        return query.count()

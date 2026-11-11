@@ -1,6 +1,17 @@
-# Exemplo de imagem de produção da aplicação Flask.
-# Build: docker build -t base-flask .
-FROM python:3.15-slim-trixie
+# Etapa build: resolve e instala as deps travadas no uv.lock
+FROM ghcr.io/astral-sh/uv:python3.15-trixie-slim AS builder
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
+
+WORKDIR /srv/app
+
+COPY pyproject.toml uv.lock .python-version ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev
+
+# Etapa runtime: imagem final enxuta, non-root
+FROM python:3.15-slim-trixie AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -10,25 +21,19 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /srv/app
 
-# uv (só para instalar as deps travadas no uv.lock)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
-
-COPY pyproject.toml uv.lock .python-version ./
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev
-
+COPY --from=builder /srv/app/.venv /srv/app/.venv
 COPY app/ ./app/
 COPY migrations/ ./migrations/
 COPY entrypoint.sh ./entrypoint.sh
 
-RUN useradd --create-home --uid 10000 --shell /bin/false appuser \
-    && mkdir -p /data && chown -R appuser:appuser /data /srv/app
+RUN useradd --create-home --uid 10000 appuser \
+    && mkdir -p /data && chown -R appuser:appuser /srv/app /data
 USER appuser
 
 EXPOSE 40000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-  CMD python -c "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:40000/status').status == 200 else 1)"
+  CMD python -c "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:40000/v1/status').status == 200 else 1)"
 
 # O entrypoint aplica `flask db upgrade` e chama o CMD (gunicorn).
 ENTRYPOINT ["/srv/app/entrypoint.sh"]

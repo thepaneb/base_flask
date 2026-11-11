@@ -4,6 +4,7 @@ from flask import Flask
 from flask_cors import CORS
 from flask_smorest import Api
 
+from app.modules.auth import bp as auth_bp
 from app.modules.hello_world import bp as hello_world_bp
 from app.modules.status import bp as status_bp
 from app.modules.visits import bp as visits_bp
@@ -11,7 +12,9 @@ from app.modules.visits import bp as visits_bp
 from .cli import seed_command
 from .config import get_config
 from .errors import register_error_handlers
-from .extensions import db, migrate
+from .extensions import db, jwt, limiter, migrate
+from .observability import bp as metrics_bp
+from .observability import init_observability
 
 
 def create_app(config_object=None):
@@ -22,11 +25,17 @@ def create_app(config_object=None):
     CORS(app, origins=origins.split(",") if origins != "*" else "*")
     db.init_app(app)
     migrate.init_app(app, db)
+    jwt.init_app(app)
+    limiter.init_app(app)
     app.cli.add_command(seed_command)
+    prefix = app.config["API_PREFIX"]
     api = Api(app)
-    api.register_blueprint(hello_world_bp)
-    api.register_blueprint(status_bp)
-    api.register_blueprint(visits_bp)
+    api.register_blueprint(hello_world_bp, url_prefix=prefix)
+    api.register_blueprint(status_bp, url_prefix=prefix)
+    api.register_blueprint(visits_bp, url_prefix=f"{prefix}/visits")
+    api.register_blueprint(auth_bp, url_prefix=f"{prefix}/auth")
+    init_observability(app)
+    app.register_blueprint(metrics_bp)  # texto puro: fora do smorest de propósito
     register_error_handlers(app)
     return app
 
