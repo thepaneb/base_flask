@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>base-flask · admin</title>
+  </head>
+  <body>
+    <h1>base-flask · painel</h1>
+    <ul>
+      <li>Usuários: {{ stats.users_total }}</li>
+      <li>Visitas: {{ stats.visits_total }}</li>
+      <li>Uptime: {{ stats.uptime_seconds }}s</li>
+      <li>Versão: {{ stats.version }}</li>
+    </ul>
+    <p>
+      <a href="/swagger-ui">Swagger UI</a> ·
+      <a href="/openapi.json">OpenAPI</a> ·
+      <a href="/v1/status">status</a>
+    </p>
+  </body>
+</html>

@@ -53,14 +53,15 @@ code base_flask
 │   ├── errors.py                     # JSON 401/404/405/429/500 handlers (+ JWT loaders)
 │   ├── extensions.py                 # db, migrate, jwt, limiter (init na factory)
 │   ├── cli.py                        # `flask seed` (dados de exemplo, idempotente)
-│   ├── observability.py              # request-id, log JSON, métricas Prometheus + /metrics
+│   ├── logging_conf.py                 # JsonFormatter + configure_logging (nível em LOG_LEVEL)
+│   ├── observability.py              # request-id, métricas Prometheus + /metrics (log via app.logger)
 │   └── modules/
 │       ├── hello_world/              # routes.py + service.py + repository.py + schemas.py
 │       ├── status/                   # routes.py + service.py + schemas.py (GET /status + GET /live)
 │       ├── visits/                   # CRUD + paginação + filtro + cache (GET/POST / + GET/DELETE /<id> + GET /export)
 │       ├── auth/                     # JWT: register/login/refresh/me + User model
-│       └── admin/                    # GET / (stats: contagens, uptime, versão; requer JWT)
-├── tests/                            # conftest + test_routes/services/visits/cli (coverage ≥90%)
+│       └── admin/                    # GET / (JSON stats) + GET /dashboard (HTML; requer JWT)
+├── tests/                            # conftest + test_routes/services/visits/cli/auth/admin/contract/logging
 ├── migrations/                       # Alembic (Flask-Migrate): `flask db migrate/upgrade`
 ├── dev/dependencies.sh               # uv sync + flask db upgrade (container postCreate)
 ├── .pre-commit-config.yaml           # ruff + hooks básicos (opcional local: `uvx pre-commit install`)

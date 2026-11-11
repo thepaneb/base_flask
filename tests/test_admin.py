@@ -14,3 +14,12 @@ def test_stats_returns_counts(client, auth_headers):
     assert data["visits_total"] == 1
     assert data["uptime_seconds"] >= 0
     assert data["version"] == "0.1.0"
+
+
+def test_dashboard_renders_html(client, auth_headers):
+    assert client.get("/v1/admin/dashboard").status_code == 401
+    resp = client.get("/v1/admin/dashboard", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.content_type.startswith("text/html")
+    body = resp.get_data(as_text=True)
+    assert "Usuários" in body and "Visitas" in body

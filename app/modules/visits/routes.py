@@ -5,7 +5,7 @@ import io
 from datetime import datetime
 from types import SimpleNamespace
 
-from flask import Response, abort
+from flask import Response, abort, current_app
 from flask_jwt_extended import jwt_required
 from flask_smorest import Blueprint
 
@@ -59,7 +59,9 @@ def index(filter_args, pagination_parameters):
     )
     pagination_parameters.item_count = total
     payload = VisitSchema(many=True).dump(items)
-    cache.set(key, {"items": payload, "total": total})
+    cache.set(
+        key, {"items": payload, "total": total}, timeout=current_app.config["CACHE_LIST_TIMEOUT"]
+    )
     return items, 200, {"X-Cache": "MISS"}
 
 
@@ -78,11 +80,21 @@ def create(args):
 @bp.route("/<int:visit_id>")
 @bp.response(200, VisitSchema)
 def show(visit_id):
-    """Retorna uma visita pelo id (404 em JSON se não existir)."""
+    """Retorna uma visita pelo id (404 em JSON se não existir; com cache)."""
+    key = f"visits:item:{visit_id}"
+    hit = cache.get(key)
+    if hit is not None:
+        item = SimpleNamespace(
+            id=hit["id"],
+            name=hit["name"],
+            created_at=datetime.fromisoformat(hit["created_at"]),
+        )
+        return item, 200, {"X-Cache": "HIT"}
     visit = get_visit(visit_id)
     if visit is None:
         abort(404)
-    return visit
+    cache.set(key, VisitSchema().dump(visit), timeout=current_app.config["CACHE_DETAIL_TIMEOUT"])
+    return visit, 200, {"X-Cache": "MISS"}
 
 
 @bp.route("/<int:visit_id>", methods=["DELETE"])
@@ -93,6 +105,7 @@ def destroy(visit_id):
     """Remove uma visita (requer JWT; 404 em JSON se não existir)."""
     if not delete_visit(visit_id):
         abort(404)
+    cache.delete(f"visits:item:{visit_id}")
     _bump_list_version()
 
 

@@ -34,6 +34,8 @@ class Config:
     CACHE_TYPE = os.getenv("CACHE_TYPE", "SimpleCache")
     CACHE_REDIS_URL = os.getenv("CACHE_REDIS_URL", "redis://localhost:6379/0")
     CACHE_DEFAULT_TIMEOUT = int(os.getenv("CACHE_DEFAULT_TIMEOUT", "60"))
+    CACHE_LIST_TIMEOUT = int(os.getenv("CACHE_LIST_TIMEOUT", "30"))
+    CACHE_DETAIL_TIMEOUT = int(os.getenv("CACHE_DETAIL_TIMEOUT", "300"))
 
     # Documentação OpenAPI (flask-smorest)
     API_TITLE = "base-flask"

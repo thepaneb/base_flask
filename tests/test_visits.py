@@ -34,14 +34,18 @@ def test_get_visit_by_id_and_404(client, auth_headers):
     assert missing.get_json() == {"error": "not found"}
 
 
-def test_delete_visit(client, auth_headers):
+def test_get_visit_cache_hit_and_invalidation(client, auth_headers):
     created = client.post("/v1/visits/", json={"name": "Ada"}, headers=auth_headers).get_json()
+    vid = created["id"]
 
-    resp = client.delete(f"/v1/visits/{created['id']}", headers=auth_headers)
-    assert resp.status_code == 204
-    assert client.get(f"/v1/visits/{created['id']}").status_code == 404
+    first = client.get(f"/v1/visits/{vid}")
+    assert first.headers["X-Cache"] == "MISS"
+    second = client.get(f"/v1/visits/{vid}")
+    assert second.headers["X-Cache"] == "HIT"
+    assert second.get_json()["name"] == "Ada"
 
-    assert client.delete("/v1/visits/999", headers=auth_headers).status_code == 404
+    assert client.delete(f"/v1/visits/{vid}", headers=auth_headers).status_code == 204
+    assert client.get(f"/v1/visits/{vid}").status_code == 404
 
 
 def test_list_pagination(client, auth_headers):
