@@ -6,6 +6,7 @@ DATABASE_URL define o banco (default SQLite local).
 """
 
 import os
+import secrets
 
 from sqlalchemy.pool import StaticPool
 
@@ -62,7 +63,9 @@ class TestingConfig(Config):
     """Pytest: banco em memória, isolado por app."""
 
     TESTING = True
-    JWT_SECRET_KEY = "test-only-not-a-secret-0123456789abcdef"
+    # Segredo aleatório por processo: evita segredo hardcoded (bandit B105)
+    # e atende ao tamanho mínimo do PyJWT.
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", secrets.token_hex(32))
     SQLALCHEMY_DATABASE_URI = "sqlite://"
     SQLALCHEMY_ENGINE_OPTIONS = {
         "poolclass": StaticPool,
